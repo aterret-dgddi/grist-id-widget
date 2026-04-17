@@ -647,85 +647,101 @@ let focusedOptIdx=-1;
 let filteredOptions=[];
 
 /* ═══════════════════════════════════════════════════════
-   GRIST — INITIALISATION ROBUSTE
-   
-   Points clés :
-   1. Le SDK grist est injecté par Grist dans l'iframe — il faut
-      attendre qu'il soit disponible (polling) avant de l'appeler.
-   2. requiredAccess doit être 'full' pour pouvoir appeler docApi.
-   3. Les colonnes de type Reference dans Grist renvoient un objet
-      {id, name} ou directement un entier selon la version — on
-      normalise tout en entier avec derefId().
-   4. On affiche un message d'erreur utile si une table est absente.
+   GRIST — INITIALISATION (méthode officielle SDK)
+
+   POURQUOI ce fonctionnement :
+   ─ grist.ready() déclare le widget et déclenche l'invite
+     d'accès côté Grist. Il NE retourne PAS de promesse.
+   ─ grist.docApi n'est disponible qu'APRÈS que l'utilisateur
+     a accordé l'accès ET que Grist a émis l'événement interne.
+   ─ La méthode sûre : utiliser grist.onOptions() comme signal
+     que le canal est ouvert, puis appeler fetchTable.
+   ─ Timeout de sécurité : si rien ne se passe après 12 s,
+     on affiche un message et le bouton mode démo.
 ═══════════════════════════════════════════════════════ */
 
-// Attendre que le SDK grist soit injecté dans la page (max 10 s)
-function waitForGrist(cb, tries=0){
-  if(typeof grist !== 'undefined'){ cb(); return; }
-  if(tries > 100){ console.warn('SDK Grist non trouvé — mode démo'); loadDemo(); return; }
-  setTimeout(()=>waitForGrist(cb, tries+1), 100);
-}
+let gristLoadTimer = null;
 
 function initGrist(){
-  waitForGrist(async ()=>{
-    // ── 1. Déclarer le widget avec accès complet (obligatoire pour docApi)
-    grist.ready({ requiredAccess: 'full' });
+  // ── Cas 1 : on n'est PAS dans Grist (ouverture directe du fichier HTML)
+  if(typeof grist === 'undefined'){
+    setStatus('Widget ouvert hors Grist — affichage des données de démonstration.', false);
+    setTimeout(loadDemo, 800);
+    return;
+  }
 
-    // ── 2. Attendre que Grist confirme que le widget est prêt
-    //       (l'événement 'ready' interne peut mettre quelques ms)
-    await new Promise(r => setTimeout(r, 300));
+  // ── Cas 2 : on est dans Grist
+  // Timeout de sécurité : si Grist ne répond pas sous 12 s → mode démo
+  gristLoadTimer = setTimeout(()=>{
+    setStatus(
+      '⏱ Délai dépassé. Causes possibles :\n' +
+      '• Niveau d\'accès insuffisant (choisir "Accès complet au document")\n' +
+      '• La boîte de dialogue d\'accès attend votre confirmation dans Grist',
+      true
+    );
+  }, 12000);
 
-    setStatus('Chargement des tables…', false);
+  // Déclarer le widget — DOIT être appelé avant tout accès aux données
+  // requiredAccess:'full' est obligatoire pour grist.docApi.fetchTable()
+  grist.ready({ requiredAccess: 'full' });
+
+  setStatus('En attente de l\'autorisation Grist…', false);
+
+  // grist.onOptions est déclenché par Grist dès que le canal est prêt
+  // C'est le signal fiable que docApi est utilisable
+  grist.onOptions(async () => {
+    clearTimeout(gristLoadTimer);
+    setStatus('Connexion établie — chargement des tables…', false);
 
     const missing = [];
+
     for(const [k, tableName] of Object.entries(CFG.tables)){
       try{
+        setStatus(`Chargement : ${tableName}…`, false);
         const raw = await grist.docApi.fetchTable(tableName);
         D[k] = toObjs(raw);
-        setStatus(`Table "${tableName}" chargée (${D[k].length} lignes)`, false);
+        console.log(`[Grist] "${tableName}" : ${D[k].length} lignes`, D[k][0]||'(vide)');
       } catch(e){
-        console.warn(`Table "${tableName}" introuvable :`, e.message||e);
+        console.warn(`[Grist] Table "${tableName}" introuvable :`, e);
         missing.push(tableName);
-        D[k] = []; // table absente → tableau vide, pas de plantage
+        D[k] = [];
       }
     }
 
     if(missing.length){
       setStatus(
-        `⚠️ Tables introuvables : ${missing.join(', ')}. `+
-        `Vérifiez les noms dans Grist (respecter la casse) et l'objet CFG.tables dans le code.`,
+        '⚠️ Tables introuvables : ' + missing.join(', ') +
+        '. Vérifiez les noms dans CFG.tables (sensible à la casse).',
         true
       );
+    } else {
+      setStatus('Données chargées.', false);
     }
 
     build();
   });
 }
 
-// Affiche un message de statut / erreur sous le spinner
+/* ── Affiche le statut sous le spinner ── */
 function setStatus(msg, isError){
   let el = document.getElementById('status-msg');
   if(!el){
     el = document.createElement('div');
     el.id = 'status-msg';
-    el.style.cssText = 'font-size:11.5px;margin-top:8px;max-width:500px;text-align:center;line-height:1.6;padding:0 16px;';
-    // Insérer avant le bouton démo
+    el.style.cssText = 'font-size:11.5px;margin-top:8px;max-width:520px;' +
+      'text-align:center;line-height:1.7;padding:0 18px;white-space:pre-line;';
     const btn = document.getElementById('btn-demo');
     document.getElementById('loading').insertBefore(el, btn);
   }
   el.style.color = isError ? '#B52020' : '#4A5A6A';
   el.textContent = msg;
-  // Si erreur critique : afficher le bouton démo après 2 s
   if(isError){
-    setTimeout(()=>{
-      const btn = document.getElementById('btn-demo');
-      if(btn) btn.style.display='inline-block';
-    }, 2000);
+    const btn = document.getElementById('btn-demo');
+    if(btn) btn.style.display = 'inline-block';
   }
 }
 
-// Convertit le format columnar de Grist en tableau d'objets
-// Gère les colonnes Reference (Grist renvoie {id,name} ou un entier)
+/* ── Convertit le format columnar Grist → tableau d'objets ── */
 function toObjs(rec){
   const ks = Object.keys(rec);
   if(!ks.length) return [];
@@ -733,23 +749,20 @@ function toObjs(rec){
     const o = { id };
     ks.forEach(k=>{
       if(k === 'id') return;
-      let v = rec[k][i];
-      // Normaliser les colonnes Reference : Grist peut renvoyer
-      // soit un entier, soit un objet {id, name}, soit ["r", rowId]
-      o[k] = derefId(v);
+      o[k] = derefId(rec[k][i]);
     });
     return o;
   });
 }
 
-// Extrait l'identifiant numérique d'une valeur Reference Grist
+/* ── Normalise les valeurs Reference Grist (3 formats possibles) ── */
 function derefId(v){
   if(v === null || v === undefined) return v;
-  // Format tableau ["r", rowId] (Grist interne)
+  // ["r", rowId]  — format interne Grist
   if(Array.isArray(v) && v[0] === 'r') return v[1];
-  // Format objet {id: N, ...}
-  if(typeof v === 'object' && v !== null && 'id' in v) return v.id;
-  // Valeur primitive (entier, chaîne, booléen)
+  // {id: N, ...}  — format objet Reference
+  if(typeof v === 'object' && 'id' in v) return v.id;
+  // Valeur primitive directe
   return v;
 }
 
