@@ -445,6 +445,7 @@ body{font-family:'Cabin',sans-serif;background:#F2F5FA;color:var(--gris1);line-h
 <div id="toolbar">
   <h1>📊 Indicateurs de gestion — Direction Générale</h1>
   <div style="display:flex;gap:7px;flex-wrap:wrap;">
+    <button class="tbtn" onclick="openDiag()" title="Diagnostic des tables Grist" style="background:rgba(255,200,0,.18);border-color:rgba(255,200,0,.4)">🔧 Diagnostic</button>
     <button class="tbtn" id="btn-html" onclick="exportHTML()" disabled>💾 Export HTML</button>
     <button class="tbtn" id="btn-print" onclick="window.print()" disabled>🖨️ Imprimer</button>
     <button class="tbtn primary" id="btn-pdf" onclick="openPdfModal()" disabled>📄 Export PDF…</button>
@@ -1528,6 +1529,83 @@ function secEmpty(ico,titre,cm,cls=''){return`<div class="section ${cls}"><div c
 /* utilitaires */
 function fmt(n){return n!=null?Number(n).toLocaleString('fr-FR'):'—';}
 function fmtD(n){return n!=null?Number(n).toLocaleString('fr-FR',{maximumFractionDigits:1}):'—';}
+
+
+/* ═══════════════════════════════════════════════════════
+   PANNEAU DE DIAGNOSTIC INTÉGRÉ
+   Bouton 🔧 dans la toolbar — affiche état de chaque table
+═══════════════════════════════════════════════════════ */
+function openDiag(){
+  const existing = document.getElementById('diag-panel');
+  if(existing){ existing.remove(); return; }
+
+  // Mapping clé interne → clé CFG.c
+  // Mapping clé D[] → clé CFG.c[] (doit refléter exactement la structure de CFG.c)
+  const cMap = {
+    structures: 'S',
+    contentieux: 'CT',
+    budget: 'B',
+    rh: 'RH',
+    immobilier: 'IM',
+    vehicules: 'VH',
+    fraisMission: 'FM',
+    commentaires: 'CM',
+    pointsAttn: 'PA'
+  };
+
+  let lines = '<h3 style="margin-bottom:12px;color:#002F6C;font-size:14px">🔧 Diagnostic des données Grist</h3>';
+  lines += '<p style="font-size:11px;color:#4A5A6A;margin-bottom:14px">Vérifiez que chaque table est chargée et que les colonnes correspondent aux noms attendus dans CFG.c.</p>';
+
+  for(const [key, tableName] of Object.entries(CFG.tables)){
+    const data = D[key]||[];
+    const ok = data.length > 0;
+    const icon = ok ? '✅' : '❌';
+
+    // Colonnes attendues vs réelles
+    const cKey = cMap[key];
+    const expectedCols = cKey ? Object.values(CFG.c[cKey]||{}) : [];
+    let colWarn = '';
+    if(ok && expectedCols.length){
+      const actualCols = Object.keys(data[0]);
+      const missing = expectedCols.filter(c=>c!=='id'&&!actualCols.includes(c));
+      if(missing.length){
+        colWarn = '<div style="color:#C05A00;font-size:10.5px;padding:4px 12px;background:#FFF8F0">⚠️ Colonnes attendues manquantes : '+missing.join(', ')+'</div>';
+      }
+    }
+
+    const sample = ok
+      ? 'Colonnes : '+Object.keys(data[0]).join(', ')
+      : 'Aucune donnée — vérifiez le nom dans CFG.tables';
+
+    lines += '<div style="margin-bottom:9px;border:1px solid #CDD6E4;border-radius:6px;overflow:hidden;">'
+      +'<div style="padding:7px 12px;background:'+(ok?'#EFF7F0':'#FFF0F0')+';display:flex;align-items:center;gap:8px;">'
+      +'<span>'+icon+'</span><strong style="font-size:12.5px">'+tableName+'</strong>'
+      +'<span style="font-size:11px;color:#4A5A6A;margin-left:auto">'+data.length+' ligne(s)</span>'
+      +'</div>'+colWarn
+      +'<div style="padding:6px 12px;font-size:10.5px;color:#8A9BAA;font-family:monospace;word-break:break-all;background:#fafafa;">'
+      +sample+'</div></div>';
+  }
+
+  lines += '<div style="margin-top:12px;padding:10px 14px;background:#E6ECF8;border-radius:6px;font-size:11px;color:#002F6C;">'
+    +'<strong>Si une table est vide ou ❌ :</strong><br>'
+    +'① Vérifiez le nom exact dans Grist (sensible à la casse)<br>'
+    +'② Mettez à jour <code>CFG.tables</code> dans le fichier HTML<br>'
+    +'③ Niveau d'accès du widget = <strong>Accès complet au document</strong><br>'
+    +'④ Colonne "Structure" = type <em>Reference → Structures</em> dans Grist'
+    +'</div>';
+
+  const panel = document.createElement('div');
+  panel.id = 'diag-panel';
+  panel.style.cssText = 'position:fixed;top:52px;right:16px;z-index:9000;width:600px;max-width:95vw;max-height:80vh;background:#fff;border:2px solid #002F6C;border-radius:10px;box-shadow:0 8px 32px rgba(0,20,70,.25);overflow-y:auto;padding:18px 20px;';
+  panel.innerHTML = lines;
+
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕ Fermer';
+  closeBtn.style.cssText = 'position:absolute;top:12px;right:14px;background:#EEF2F7;border:1px solid #CDD6E4;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11.5px;';
+  closeBtn.onclick = ()=>panel.remove();
+  panel.appendChild(closeBtn);
+  document.body.appendChild(panel);
+}
 
 window.addEventListener('load',initGrist);
 </script>
