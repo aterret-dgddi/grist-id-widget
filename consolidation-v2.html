@@ -166,83 +166,83 @@ const CFG={
 };
 let D={}, curTab='budget';
 
-/* ════════ GRIST — INITIALISATION (méthode officielle) ════════ */
+/* ════════ GRIST — INITIALISATION MULTI-MÉTHODES ════════ */
 
-let gristLoadTimer = null;
+let _gristReady = false;
+let _loadTimer  = null;
 
-function initGrist(){
-  if(typeof grist === 'undefined'){
-    setConsoStatus('Widget ouvert hors Grist — données de démonstration.', false);
-    setTimeout(loadDemo, 800);
-    return;
+function initGrist() {
+  if (typeof grist === 'undefined') {
+    setTimeout(loadDemo, 500); return;
   }
 
-  gristLoadTimer = setTimeout(()=>{
-    setConsoStatus(
-      '⏱ Délai dépassé. Vérifiez que le niveau d'accès est "Accès complet au document" dans les paramètres du widget Grist.',
-      true
-    );
-  }, 12000);
-
-  grist.ready({ requiredAccess: 'full' });
-  setConsoStatus('En attente de l'autorisation Grist…', false);
-
-  grist.onOptions(async () => {
-    clearTimeout(gristLoadTimer);
-    setConsoStatus('Chargement des tables…', false);
-
-    const missing = [];
-    for(const [k, t] of Object.entries(CFG.tables)){
-      try{
-        const r = await grist.docApi.fetchTable(t);
-        D[k] = toObjs(r);
-        console.log(`[Grist] "${t}": ${D[k].length} lignes`);
-      } catch(e){
-        console.warn(`[Grist] Table "${t}" introuvable:`, e);
-        missing.push(t);
-        D[k] = [];
-      }
+  _loadTimer = setTimeout(() => {
+    if (_gristReady) return;
+    const el = document.querySelector('#loading span');
+    if (el) {
+      el.style.color = '#B52020';
+      el.style.whiteSpace = 'pre-line';
+      el.textContent = '⏱ Grist ne répond pas.\nVérifiez : Niveau d\'accès = "Accès complet au document"\npuis rechargez (F5)';
     }
-
-    if(missing.length){
-      setConsoStatus('⚠️ Tables introuvables : ' + missing.join(', ') + '. Vérifiez CFG.tables.', true);
-    }
-
-    init();
-  });
-}
-
-function setConsoStatus(msg, isError){
-  const el = document.querySelector('#loading span');
-  if(!el) return;
-  el.style.color = isError ? '#B52020' : '#8A9BAA';
-  el.style.whiteSpace = 'pre-line';
-  el.textContent = msg;
-  if(isError){
     let btn = document.getElementById('btn-conso-demo');
-    if(!btn){
+    if (!btn) {
       btn = document.createElement('button');
       btn.id = 'btn-conso-demo';
-      btn.textContent = 'Utiliser les données de démonstration';
-      btn.style.cssText = 'margin-top:12px;padding:6px 16px;background:#EEF2F7;border:1px solid #CDD6E4;border-radius:5px;cursor:pointer;font-size:12px;color:#4A5A6A;display:block;';
+      btn.textContent = 'Mode démonstration';
+      btn.style.cssText = 'margin-top:12px;padding:6px 16px;background:#EEF2F7;border:1px solid #CDD6E4;border-radius:5px;cursor:pointer;font-size:12px;';
       btn.onclick = loadDemo;
       document.getElementById('loading').appendChild(btn);
     }
-  }
+  }, 15000);
+
+  try { grist.ready({ requiredAccess: 'full' }); } catch(e) {}
+
+  const tryFetch = () => { if (!_gristReady) fetchAllTables(); };
+
+  if (typeof grist.onOptions === 'function') grist.onOptions(tryFetch);
+  if (typeof grist.onRecord  === 'function') grist.onRecord(tryFetch);
+  setTimeout(() => { if (!_gristReady && typeof grist.docApi !== 'undefined') fetchAllTables(); }, 1000);
+
+  let n = 0;
+  const poll = setInterval(() => {
+    if (_gristReady || ++n > 20) { clearInterval(poll); return; }
+    if (typeof grist.docApi?.fetchTable === 'function') { clearInterval(poll); fetchAllTables(); }
+  }, 500);
 }
 
-function derefId(v){
-  if(v===null||v===undefined) return v;
-  if(Array.isArray(v)&&v[0]==='r') return v[1];
-  if(typeof v==='object'&&'id'in v) return v.id;
+async function fetchAllTables() {
+  if (_gristReady) return;
+  _gristReady = true;
+  clearTimeout(_loadTimer);
+
+  const el = document.querySelector('#loading span');
+  if (el) el.textContent = 'Chargement des tables…';
+
+  for (const [k, t] of Object.entries(CFG.tables)) {
+    try {
+      if (el) el.textContent = 'Chargement : ' + t + '…';
+      D[k] = toObjs(await grist.docApi.fetchTable(t));
+      console.log('[Grist]', t, ':', D[k].length, 'lignes');
+    } catch(e) {
+      console.warn('[Grist] Table', t, 'introuvable:', e);
+      D[k] = [];
+    }
+  }
+  init();
+}
+
+function derefId(v) {
+  if (v === null || v === undefined)     return v;
+  if (Array.isArray(v) && v[0] === 'r') return v[1];
+  if (typeof v === 'object' && 'id' in v) return v.id;
   return v;
 }
 
-function toObjs(rec){
-  const ks=Object.keys(rec); if(!ks.length)return[];
-  return (rec.id||[]).map((id,i)=>{
-    const o={id};
-    ks.forEach(k=>{ if(k!=='id') o[k]=derefId(rec[k][i]); });
+function toObjs(rec) {
+  const ks = Object.keys(rec); if (!ks.length) return [];
+  return (rec.id||[]).map((id,i) => {
+    const o = {id};
+    ks.forEach(k => { if (k !== 'id') o[k] = derefId(rec[k][i]); });
     return o;
   });
 }

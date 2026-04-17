@@ -647,123 +647,163 @@ let focusedOptIdx=-1;
 let filteredOptions=[];
 
 /* ═══════════════════════════════════════════════════════
-   GRIST — INITIALISATION (méthode officielle SDK)
+   GRIST — INITIALISATION MULTI-MÉTHODES
+   Compatible grist.numerique.gouv.fr et toutes versions
 
-   POURQUOI ce fonctionnement :
-   ─ grist.ready() déclare le widget et déclenche l'invite
-     d'accès côté Grist. Il NE retourne PAS de promesse.
-   ─ grist.docApi n'est disponible qu'APRÈS que l'utilisateur
-     a accordé l'accès ET que Grist a émis l'événement interne.
-   ─ La méthode sûre : utiliser grist.onOptions() comme signal
-     que le canal est ouvert, puis appeler fetchTable.
-   ─ Timeout de sécurité : si rien ne se passe après 12 s,
-     on affiche un message et le bouton mode démo.
+   Stratégie en cascade :
+   1. grist.onOptions  — méthode moderne (Grist >= 0.1.6)
+   2. grist.onRecord   — signal alternatif disponible partout
+   3. grist.docApi direct avec retry — si le canal s'ouvre
+   4. Timeout 15s      — bascule mode démo avec message clair
 ═══════════════════════════════════════════════════════ */
 
-let gristLoadTimer = null;
+let _gristReady = false;   // garde: évite double chargement
+let _loadTimer  = null;
 
-function initGrist(){
-  // ── Cas 1 : on n'est PAS dans Grist (ouverture directe du fichier HTML)
-  if(typeof grist === 'undefined'){
-    setStatus('Widget ouvert hors Grist — affichage des données de démonstration.', false);
-    setTimeout(loadDemo, 800);
+function initGrist() {
+  /* ─── Hors Grist (ouverture locale du fichier HTML) ─── */
+  if (typeof grist === 'undefined') {
+    setStatus('Données de démonstration (widget ouvert hors Grist).', false);
+    setTimeout(loadDemo, 500);
     return;
   }
 
-  // ── Cas 2 : on est dans Grist
-  // Timeout de sécurité : si Grist ne répond pas sous 12 s → mode démo
-  gristLoadTimer = setTimeout(()=>{
+  /* ─── Timeout de sécurité 15 s ─── */
+  _loadTimer = setTimeout(() => {
+    if (_gristReady) return;
     setStatus(
-      '⏱ Délai dépassé. Causes possibles :\n' +
-      '• Niveau d\'accès insuffisant (choisir "Accès complet au document")\n' +
-      '• La boîte de dialogue d\'accès attend votre confirmation dans Grist',
+      '⏱ Grist ne répond pas.\n' +
+      'Vérifiez dans les paramètres du widget :\n' +
+      '→ Niveau d\'accès = "Accès complet au document"\n' +
+      '→ Puis rechargez la page (F5)',
       true
     );
-  }, 12000);
+  }, 15000);
 
-  // Déclarer le widget — DOIT être appelé avant tout accès aux données
-  // requiredAccess:'full' est obligatoire pour grist.docApi.fetchTable()
-  grist.ready({ requiredAccess: 'full' });
+  /* ─── Déclaration du widget ─── */
+  // requiredAccess:'full' est OBLIGATOIRE pour docApi.fetchTable()
+  try {
+    grist.ready({ requiredAccess: 'full' });
+  } catch(e) {
+    console.warn('[Grist] grist.ready() a échoué:', e);
+  }
 
-  setStatus('En attente de l\'autorisation Grist…', false);
+  setStatus('En attente de Grist...', false);
 
-  // grist.onOptions est déclenché par Grist dès que le canal est prêt
-  // C'est le signal fiable que docApi est utilisable
-  grist.onOptions(async () => {
-    clearTimeout(gristLoadTimer);
-    setStatus('Connexion établie — chargement des tables…', false);
+  /* ─── Méthode 1 : grist.onOptions (Grist moderne) ─── */
+  if (typeof grist.onOptions === 'function') {
+    grist.onOptions(() => {
+      console.log('[Grist] onOptions déclenché');
+      fetchAllTables();
+    });
+  }
 
-    const missing = [];
-
-    for(const [k, tableName] of Object.entries(CFG.tables)){
-      try{
-        setStatus(`Chargement : ${tableName}…`, false);
-        const raw = await grist.docApi.fetchTable(tableName);
-        D[k] = toObjs(raw);
-        console.log(`[Grist] "${tableName}" : ${D[k].length} lignes`, D[k][0]||'(vide)');
-      } catch(e){
-        console.warn(`[Grist] Table "${tableName}" introuvable :`, e);
-        missing.push(tableName);
-        D[k] = [];
+  /* ─── Méthode 2 : grist.onRecord (disponible sur toutes versions) ─── */
+  // Grist l'émet dès qu'une ligne est sélectionnée — signal que le canal est ouvert
+  if (typeof grist.onRecord === 'function') {
+    grist.onRecord(() => {
+      if (!_gristReady) {
+        console.log('[Grist] onRecord déclenché — démarrage fetchAllTables');
+        fetchAllTables();
       }
-    }
+    });
+  }
 
-    if(missing.length){
-      setStatus(
-        '⚠️ Tables introuvables : ' + missing.join(', ') +
-        '. Vérifiez les noms dans CFG.tables (sensible à la casse).',
-        true
-      );
-    } else {
-      setStatus('Données chargées.', false);
+  /* ─── Méthode 3 : tentative directe après 1 s ─── */
+  // Sur certaines versions de grist.numerique.gouv.fr, docApi
+  // est disponible sans attendre d'événement
+  setTimeout(() => {
+    if (!_gristReady && typeof grist.docApi !== 'undefined') {
+      console.log('[Grist] docApi disponible directement après 1s');
+      fetchAllTables();
     }
+  }, 1000);
 
-    build();
-  });
+  /* ─── Méthode 4 : polling docApi toutes les 500 ms pendant 10 s ─── */
+  let pollCount = 0;
+  const poller = setInterval(() => {
+    pollCount++;
+    if (_gristReady || pollCount > 20) { clearInterval(poller); return; }
+    if (typeof grist.docApi !== 'undefined' && typeof grist.docApi.fetchTable === 'function') {
+      console.log(`[Grist] docApi détecté par polling (essai ${pollCount})`);
+      clearInterval(poller);
+      fetchAllTables();
+    }
+  }, 500);
 }
 
-/* ── Affiche le statut sous le spinner ── */
-function setStatus(msg, isError){
+/* ── Chargement de toutes les tables (appelé une seule fois) ── */
+async function fetchAllTables() {
+  if (_gristReady) return;   // garde contre les appels multiples
+  _gristReady = true;
+  clearTimeout(_loadTimer);
+
+  setStatus('Chargement des tables Grist...', false);
+
+  const missing = [];
+
+  for (const [k, tableName] of Object.entries(CFG.tables)) {
+    try {
+      setStatus(`Chargement : ${tableName}...`, false);
+      const raw = await grist.docApi.fetchTable(tableName);
+      D[k] = toObjs(raw);
+      console.log(`[Grist] "${tableName}" OK — ${D[k].length} lignes`, D[k][0] || '(vide)');
+    } catch(e) {
+      console.warn(`[Grist] Table "${tableName}" en erreur :`, e);
+      missing.push(tableName);
+      D[k] = [];
+    }
+  }
+
+  if (missing.length) {
+    setStatus(
+      '⚠️ Tables introuvables : ' + missing.join(', ') + '\n' +
+      'Vérifiez les noms dans CFG.tables (sensible à la casse).\n' +
+      'Utilisez le bouton 🔧 Diagnostic pour voir les colonnes reçues.',
+      true
+    );
+  }
+
+  build();
+}
+
+/* ── Affichage du statut dans le spinner ── */
+function setStatus(msg, isError) {
   let el = document.getElementById('status-msg');
-  if(!el){
+  if (!el) {
     el = document.createElement('div');
     el.id = 'status-msg';
-    el.style.cssText = 'font-size:11.5px;margin-top:8px;max-width:520px;' +
-      'text-align:center;line-height:1.7;padding:0 18px;white-space:pre-line;';
+    el.style.cssText =
+      'font-size:11.5px;margin-top:10px;max-width:480px;text-align:center;' +
+      'line-height:1.7;padding:0 16px;white-space:pre-line;';
     const btn = document.getElementById('btn-demo');
     document.getElementById('loading').insertBefore(el, btn);
   }
   el.style.color = isError ? '#B52020' : '#4A5A6A';
-  el.textContent = msg;
-  if(isError){
+  el.textContent  = msg;
+  if (isError) {
     const btn = document.getElementById('btn-demo');
-    if(btn) btn.style.display = 'inline-block';
+    if (btn) btn.style.display = 'inline-block';
   }
 }
 
-/* ── Convertit le format columnar Grist → tableau d'objets ── */
-function toObjs(rec){
+/* ── Conversion format columnar Grist → tableau d'objets ── */
+function toObjs(rec) {
   const ks = Object.keys(rec);
-  if(!ks.length) return [];
-  return (rec.id||[]).map((id,i)=>{
+  if (!ks.length) return [];
+  return (rec.id || []).map((id, i) => {
     const o = { id };
-    ks.forEach(k=>{
-      if(k === 'id') return;
-      o[k] = derefId(rec[k][i]);
-    });
+    ks.forEach(k => { if (k !== 'id') o[k] = derefId(rec[k][i]); });
     return o;
   });
 }
 
-/* ── Normalise les valeurs Reference Grist (3 formats possibles) ── */
-function derefId(v){
-  if(v === null || v === undefined) return v;
-  // ["r", rowId]  — format interne Grist
-  if(Array.isArray(v) && v[0] === 'r') return v[1];
-  // {id: N, ...}  — format objet Reference
-  if(typeof v === 'object' && 'id' in v) return v.id;
-  // Valeur primitive directe
-  return v;
+/* ── Normalise les 3 formats de valeur Reference Grist ── */
+function derefId(v) {
+  if (v === null || v === undefined)              return v;
+  if (Array.isArray(v) && v[0] === 'r')          return v[1];   // ["r", rowId]
+  if (typeof v === 'object' && 'id' in v)        return v.id;   // {id:N,...}
+  return v;                                                       // primitif
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -1139,7 +1179,7 @@ async function generatePDF(structs, blocs, inclAttn, inclDR, inclDate){
 
   for(let si=0;si<structs.length;si++){
     const s=structs[si];
-    setProgress(Math.round(si/structs.length*85), `Structure ${si+1}/${structs.length} : ${s[CFG.c.S.nom]}…`);
+    setProgress(Math.round(si/structs.length*85), `Structure ${si+1}/${structs.length} : ${s[CFG.c.S.nom]}...`);
 
     // Créer un conteneur temporaire hors-écran
     const container=document.createElement('div');
@@ -1196,7 +1236,7 @@ async function generatePDF(structs, blocs, inclAttn, inclDR, inclDate){
     }
   }
 
-  setProgress(100,'Finalisation…');
+  setProgress(100,'Finalisation...');
   await new Promise(r=>setTimeout(r,300));
 
   const fname = structs.length===1
@@ -1603,7 +1643,7 @@ function openDiag(){
     +'<strong>Si une table est vide ou ❌ :</strong><br>'
     +'① Vérifiez le nom exact dans Grist (sensible à la casse)<br>'
     +'② Mettez à jour <code>CFG.tables</code> dans le fichier HTML<br>'
-    +'③ Niveau d'accès du widget = <strong>Accès complet au document</strong><br>'
+    +'&#9314; Niveau d\'acces du widget = <strong>Acces complet au document</strong><br>'
     +'④ Colonne "Structure" = type <em>Reference → Structures</em> dans Grist'
     +'</div>';
 
