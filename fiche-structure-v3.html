@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Fiche de structure — Indicateurs de gestion</title>
-<!-- jsPDF + html2canvas pour export PDF natif --><!-- v3.1 -->
+<!-- jsPDF + html2canvas pour export PDF natif --><!-- v3.final-20260420090524 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
@@ -1495,8 +1495,8 @@ function buildPdfHTML(s, blocs, inclAttn, inclDR){
   // Véhicules
   if(blocs.includes('vehicules')){
     const c=CFG.c.VH, cmv=cm.find(x=>x[CFG.c.CM.bloc]==='vehicules');
-    const vs=vh?vh[c.vet_s]||0:0, vn=vh?vh[c.vet_n]||0:0;
-    const ps=vh?n(vh[c.vpa_s]).toFixed.toFixed(2):'—', pn=vh?n(vh[c.vpa_n]).toFixed.toFixed(2):'—';
+    const vs=vh?n(vh[c.vet_s]):0, vn=vh?n(vh[c.vet_n]):0;
+    const ps=vh?n(vh[c.vpa_s]).toFixed(2):'—', pn=vh?n(vh[c.vpa_n]).toFixed(2):'—';
     html+=`<div class="sec"><div class="sec-hdr">🚗 Parc de véhicules</div><div class="sec-body">
       ${vh?`<div class="krow">
         <div class="k"><div class="kv">${vh[c.nb]||0}</div><div class="kl">Véhicules</div></div>
@@ -1505,7 +1505,7 @@ function buildPdfHTML(s, blocs, inclAttn, inclDR){
         <div class="k ${parseFloat(ps)>parseFloat(pn)?'r':'v'}"><div class="kv">${ps}</div><div class="kl">Véh./agent struct.</div></div>
         <div class="k"><div class="kv" style="color:#4A5A6A">${pn}</div><div class="kl">Véh./agent nat.</div></div>
       </div>`:'<p style="color:#8A9BAA;font-style:italic">Pas de données</p>'}
-      ${inclDR&&drs.length?drs.map(dr=>{const d=(D.vehicules||[]).find(r=>r[c.struct]==dr.id);return`<div class="dr-sec"><div class="dr-name">DR : ${dr[CFG.c.S.nom]}</div>${d?`Véhicules : ${d[c.nb]} | Vétusté : ${d[c.vet_s]}% (nat. ${d[c.vet_n]}%) | Véh./agent : ${n(d[c.vpa_s]).toFixed.toFixed(2)}`:'Pas de données'}</div>`;}).join(''):''}
+      ${inclDR&&drs.length?drs.map(dr=>{const d=(D.vehicules||[]).find(r=>r[c.struct]==dr.id);return`<div class="dr-sec"><div class="dr-name">DR : ${dr[CFG.c.S.nom]}</div>${d?`Véhicules : ${d[c.nb]} | Vétusté : ${d[c.vet_s]}% (nat. ${d[c.vet_n]}%) | Véh./agent : ${n(d[c.vpa_s]).toFixed(2)}`:'Pas de données'}</div>`;}).join(''):''}
       ${blocs.includes('commentaires')&&cmv?`<div class="cmt">💬 ${cmv[CFG.c.CM.txt]}</div>`:''}
     </div></div>`;
   }
