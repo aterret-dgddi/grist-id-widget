@@ -622,7 +622,7 @@ body{font-family:'Cabin',sans-serif;background:#F2F5FA;color:var(--gris1);line-h
    CONFIG
 ═══════════════════════════════════════════════════════ */
 const CFG={
-  tables:{structures:'Structures',contentieux:'Contentieux',budget:'Budget',rh:'RH',immobilier:'Immobilier',vehicules:'Vehicules',fraisMission:'FraisMission',commentaires:'Commentaires',pointsAttn:'PointsAttention'},
+  tables:{structures:'Structures',contentieux:'Contentieux',budget:'Budget',rh:'RH',immobilier:'Immobilier',vehicules:'Vehicules',fraisMission:'FraisMission',commentaires:'Commentaires'},
   c:{
     S:{id:'id',nom:'Nom',type:'Type',parent:'Parent',region:'Region',chef:'Chef',logo:'Logo',maj:'DateMAJ'},
     CT:{struct:'Structure',nb:'NombreTotal',cannabis:'KgCannabis',cocaine:'KgCocaine',tabac:'KgTabac'},
@@ -631,8 +631,9 @@ const CFG={
     IM:{struct:'Structure',site:'NomSite',occ:'TypeOccupation',adr:'Adresse',m2:'M2Occupes',cout:'CoutGestionM2',loyer:'LoyerAnnuel'},
     VH:{struct:'Structure',nb:'NbVehicules',vet_s:'TauxVetusteStructure',vet_n:'TauxVetusteMoyenNational',vpa_s:'VehiculesParAgent',vpa_n:'VehiculesMoyenNational'},
     FM:{struct:'Structure',type:'TypeMission',annee:'Annee',mt:'MontantTotal',tr:'PartTransport',hb:'PartHebergement',rp:'PartRepas'},
+    // Commentaires : Bloc peut valoir 'contentieux','budget','rh','immobilier',
+    //   'vehicules','fraisMission', 'pointsAttention' (texte libre) ou 'chantier' (une pillule par ligne)
     CM:{struct:'Structure',bloc:'Bloc',txt:'Commentaire'},
-    PA:{struct:'Structure',txt:'PointsAttention',c1:'ChantierStructurant1',c2:'ChantierStructurant2',c3:'ChantierStructurant3'},
   }
 };
 
@@ -647,164 +648,247 @@ let focusedOptIdx=-1;
 let filteredOptions=[];
 
 /* ═══════════════════════════════════════════════════════
-   GRIST — INITIALISATION MULTI-MÉTHODES
-   Compatible grist.numerique.gouv.fr et toutes versions
-
-   Stratégie en cascade :
-   1. grist.onOptions  — méthode moderne (Grist >= 0.1.6)
-   2. grist.onRecord   — signal alternatif disponible partout
-   3. grist.docApi direct avec retry — si le canal s'ouvre
-   4. Timeout 15s      — bascule mode démo avec message clair
+   GRIST — INITIALISATION
+   
+   Stratégie adaptée à grist.numerique.gouv.fr :
+   
+   1. grist.onRecords(tableId, cb) → reçoit la table source
+      complète à chaque modification. On l'utilise pour
+      la table Structures (table source du widget).
+      
+   2. Pour les autres tables : grist.docApi.fetchTable()
+      si disponible, sinon l'API REST Grist (fetch HTTP).
+      
+   3. grist.onRecords déclenche un rechargement complet
+      à chaque modification → les données sont toujours fraîches.
 ═══════════════════════════════════════════════════════ */
 
-let _gristReady = false;   // garde: évite double chargement
+let _loading    = false;   // verrou contre appels simultanés
 let _loadTimer  = null;
+let _apiBaseUrl = '';      // base URL pour l'API REST de secours
 
 function initGrist() {
-  /* ─── Hors Grist (ouverture locale du fichier HTML) ─── */
+
+  /* ── Hors Grist ── */
   if (typeof grist === 'undefined') {
-    setStatus('Données de démonstration (widget ouvert hors Grist).', false);
-    setTimeout(loadDemo, 500);
+    setStatus('Mode démonstration (widget ouvert hors Grist)', false);
+    setTimeout(loadDemo, 400);
     return;
   }
 
-  /* ─── Timeout de sécurité 15 s ─── */
+  /* ── Trouver la base URL pour l'API REST (secours) ── */
+  try {
+    _apiBaseUrl = window.location.origin; // ex: https://grist.numerique.gouv.fr
+  } catch(e) {}
+
+  /* ── Timeout 25 s ── */
   _loadTimer = setTimeout(() => {
-    if (_gristReady) return;
+    if (D.structures && D.structures.length) return; // déjà chargé
     setStatus(
-      '⏱ Grist ne répond pas.\n' +
-      'Vérifiez dans les paramètres du widget :\n' +
-      '→ Niveau d\'accès = "Accès complet au document"\n' +
-      '→ Puis rechargez la page (F5)',
+      'Grist ne répond pas.\n' +
+      'Vérifiez : Paramètres du widget → "Accès complet au document"\n' +
+      'puis rafraîchissez (F5)',
       true
     );
-  }, 15000);
+  }, 25000);
 
-  /* ─── Déclaration du widget ─── */
-  // requiredAccess:'full' est OBLIGATOIRE pour docApi.fetchTable()
+  /* ── Déclaration du widget ── */
   try {
-    grist.ready({ requiredAccess: 'full' });
+    grist.ready({
+      requiredAccess: 'full',
+      // On déclare qu'on veut écouter toutes les tables, pas seulement la source
+      columns: []
+    });
   } catch(e) {
-    console.warn('[Grist] grist.ready() a échoué:', e);
+    try { grist.ready({ requiredAccess: 'full' }); } catch(e2) {}
   }
 
-  setStatus('En attente de Grist...', false);
+  setStatus('Connexion à Grist...', false);
 
-  /* ─── Méthode 1 : grist.onOptions (Grist moderne) ─── */
-  if (typeof grist.onOptions === 'function') {
-    grist.onOptions(() => {
-      console.log('[Grist] onOptions déclenché');
-      fetchAllTables();
-    });
-  }
-
-  /* ─── Méthode 2 : grist.onRecord (disponible sur toutes versions) ─── */
-  // Grist l'émet dès qu'une ligne est sélectionnée — signal que le canal est ouvert
-  if (typeof grist.onRecord === 'function') {
-    grist.onRecord(() => {
-      if (!_gristReady) {
-        console.log('[Grist] onRecord déclenché — démarrage fetchAllTables');
-        fetchAllTables();
+  /* ══════════════════════════════════════════════════════
+     MÉTHODE PRINCIPALE : grist.onRecords
+     Reçoit les données de la table source à chaque modif.
+     On l'utilise comme déclencheur ET comme source de données
+     pour la table Structures.
+  ══════════════════════════════════════════════════════ */
+  if (typeof grist.onRecords === 'function') {
+    grist.onRecords(async function(records, mappings) {
+      console.log('[Grist] onRecords:', records ? records.length : 0, 'lignes');
+      
+      /* Les records reçus sont la table source (Structures).
+         On les utilise directement — ce sont les vraies données Grist. */
+      if (records && records.length > 0) {
+        D.structures = records.map(function(r) { return normalizeRecord(r); });
+        console.log('[Grist] Structures via onRecords:', D.structures.length, 'lignes');
+        console.log('[Grist] Exemple:', JSON.stringify(D.structures[0]));
       }
+
+      clearTimeout(_loadTimer);
+      await chargerAutresTables();
     });
   }
 
-  /* ─── Méthode 3 : tentative directe après 1 s ─── */
-  // Sur certaines versions de grist.numerique.gouv.fr, docApi
-  // est disponible sans attendre d'événement
-  setTimeout(() => {
-    if (!_gristReady && typeof grist.docApi !== 'undefined') {
-      console.log('[Grist] docApi disponible directement après 1s');
-      fetchAllTables();
-    }
-  }, 1000);
-
-  /* ─── Méthode 4 : polling docApi toutes les 500 ms pendant 10 s ─── */
-  let pollCount = 0;
-  const poller = setInterval(() => {
-    pollCount++;
-    if (_gristReady || pollCount > 20) { clearInterval(poller); return; }
-    if (typeof grist.docApi !== 'undefined' && typeof grist.docApi.fetchTable === 'function') {
-      console.log(`[Grist] docApi détecté par polling (essai ${pollCount})`);
-      clearInterval(poller);
-      fetchAllTables();
-    }
-  }, 500);
+  /* ══════════════════════════════════════════════════════
+     FALLBACK : grist.onRecord (singulier)
+  ══════════════════════════════════════════════════════ */
+  if (typeof grist.onRecord === 'function') {
+    grist.onRecord(async function(record) {
+      if (D.structures && D.structures.length) return; // déjà chargé via onRecords
+      console.log('[Grist] onRecord déclenché');
+      clearTimeout(_loadTimer);
+      await chargerAutresTables();
+    });
+  }
 }
 
-/* ── Chargement de toutes les tables (appelé une seule fois) ── */
-async function fetchAllTables() {
-  if (_gristReady) return;   // garde contre les appels multiples
-  _gristReady = true;
-  clearTimeout(_loadTimer);
+/* ════════════════════════════════════════════════════
+   CHARGEMENT DES TABLES SECONDAIRES
+   (tout sauf Structures qui vient de onRecords)
+════════════════════════════════════════════════════ */
+async function chargerAutresTables() {
+  if (_loading) return;
+  _loading = true;
+  setStatus('Chargement des données...', false);
 
-  setStatus('Chargement des tables Grist...', false);
+  const autresTables = Object.entries(CFG.tables).filter(([k]) => k !== 'structures');
 
-  const missing = [];
-
-  for (const [k, tableName] of Object.entries(CFG.tables)) {
-    try {
-      setStatus(`Chargement : ${tableName}...`, false);
-      const raw = await grist.docApi.fetchTable(tableName);
-      D[k] = toObjs(raw);
-      console.log(`[Grist] "${tableName}" OK — ${D[k].length} lignes`, D[k][0] || '(vide)');
-    } catch(e) {
-      console.warn(`[Grist] Table "${tableName}" en erreur :`, e);
-      missing.push(tableName);
-      D[k] = [];
+  for (const [key, tableName] of autresTables) {
+    const data = await fetchTableGrist(tableName);
+    if (data !== null) {
+      D[key] = data;
+      console.log('[Grist] "' + tableName + '": ' + data.length + ' lignes' +
+        (data[0] ? ' | cols: ' + Object.keys(data[0]).join(', ') : ' (vide)'));
+    } else {
+      console.warn('[Grist] Table "' + tableName + '" inaccessible — données conservées');
+      D[key] = D[key] || [];
     }
   }
 
-  if (missing.length) {
-    setStatus(
-      '⚠️ Tables introuvables : ' + missing.join(', ') + '\n' +
-      'Vérifiez les noms dans CFG.tables (sensible à la casse).\n' +
-      'Utilisez le bouton 🔧 Diagnostic pour voir les colonnes reçues.',
-      true
-    );
+  /* Si Structures n'a pas été chargée via onRecords, essayer fetchTable */
+  if (!D.structures || !D.structures.length) {
+    const data = await fetchTableGrist(CFG.tables.structures);
+    if (data && data.length) {
+      D.structures = data;
+      console.log('[Grist] Structures via fetchTable:', data.length, 'lignes');
+    }
   }
 
+  _loading = false;
+  console.log('[Grist] Chargement terminé. Structures:', (D.structures||[]).length);
   build();
 }
 
-/* ── Affichage du statut dans le spinner ── */
+/* ════════════════════════════════════════════════════
+   FETCH D'UNE TABLE — docApi puis API REST
+════════════════════════════════════════════════════ */
+async function fetchTableGrist(tableName) {
+  /* Tentative 1 : grist.docApi.fetchTable */
+  if (typeof grist !== 'undefined' &&
+      typeof grist.docApi !== 'undefined' &&
+      typeof grist.docApi.fetchTable === 'function') {
+    try {
+      const raw = await grist.docApi.fetchTable(tableName);
+      return toObjs(raw);
+    } catch(e) {
+      console.warn('[Grist] docApi.fetchTable("' + tableName + '") échoué:', e.message || e);
+    }
+  }
+
+  /* Tentative 2 : API REST Grist
+     URL : /api/docs/{docId}/tables/{tableId}/records
+     Nécessite que le widget soit dans le même domaine ou CORS permissif */
+  try {
+    const docId = await getDocId();
+    if (!docId) return null;
+    const url = _apiBaseUrl + '/api/docs/' + docId + '/tables/' + tableName + '/records';
+    console.log('[Grist] API REST:', url);
+    const resp = await fetch(url, { credentials: 'include' });
+    if (!resp.ok) {
+      console.warn('[Grist] API REST ' + tableName + ' → HTTP ' + resp.status);
+      return null;
+    }
+    const json = await resp.json();
+    /* Format API REST : { records: [{id, fields:{...}}, ...] } */
+    return (json.records || []).map(function(r) {
+      const obj = { id: r.id };
+      Object.entries(r.fields || {}).forEach(function([k, v]) { obj[k] = derefId(v); });
+      return obj;
+    });
+  } catch(e) {
+    console.warn('[Grist] API REST "' + tableName + '" échoué:', e.message || e);
+  }
+
+  return null;
+}
+
+/* Récupère l'ID du document Grist depuis l'URL de la page */
+async function getDocId() {
+  try {
+    /* Depuis l'iframe, window.parent.location peut être bloqué par CSP.
+       On extrait l'ID depuis grist si possible. */
+    if (typeof grist !== 'undefined' && grist.docId) return grist.docId;
+    if (typeof grist !== 'undefined' && grist.getDocName) return await grist.getDocName();
+    /* Fallback : extraire de l'URL parente */
+    const m = document.referrer.match(/\/([a-zA-Z0-9]{16,})\//);
+    return m ? m[1] : null;
+  } catch(e) { return null; }
+}
+
+/* ════════════════════════════════════════════════════
+   CONVERSION ET NORMALISATION
+════════════════════════════════════════════════════ */
+
+/* Grist columnar format → array of objects */
+function toObjs(rec) {
+  const keys = Object.keys(rec);
+  if (!keys.length) return [];
+  return (rec.id || []).map(function(id, i) {
+    const obj = { id: id };
+    keys.forEach(function(k) {
+      if (k !== 'id') obj[k] = derefId(rec[k][i]);
+    });
+    return obj;
+  });
+}
+
+/* Normalise un record reçu via onRecords (format peut varier) */
+function normalizeRecord(r) {
+  if (!r || typeof r !== 'object') return r;
+  const obj = {};
+  Object.entries(r).forEach(function([k, v]) { obj[k] = derefId(v); });
+  return obj;
+}
+
+/* Dé-référence les colonnes Reference Grist (3 formats possibles) */
+function derefId(v) {
+  if (v === null || v === undefined)        return v;
+  if (Array.isArray(v) && v[0] === 'r')    return v[1];      // ["r", rowId]
+  if (typeof v === 'object' && 'id' in v)  return v.id;      // {id:N, ...}
+  return v;
+}
+
+/* Affiche un message sous le spinner */
 function setStatus(msg, isError) {
   let el = document.getElementById('status-msg');
   if (!el) {
     el = document.createElement('div');
     el.id = 'status-msg';
     el.style.cssText =
-      'font-size:11.5px;margin-top:10px;max-width:480px;text-align:center;' +
-      'line-height:1.7;padding:0 16px;white-space:pre-line;';
+      'font-size:11.5px;margin-top:10px;max-width:480px;' +
+      'text-align:center;line-height:1.7;padding:0 16px;white-space:pre-line;';
     const btn = document.getElementById('btn-demo');
-    document.getElementById('loading').insertBefore(el, btn);
+    const loading = document.getElementById('loading');
+    if (loading && btn) loading.insertBefore(el, btn);
+    else if (loading) loading.appendChild(el);
   }
   el.style.color = isError ? '#B52020' : '#4A5A6A';
-  el.textContent  = msg;
+  el.textContent = msg;
   if (isError) {
     const btn = document.getElementById('btn-demo');
     if (btn) btn.style.display = 'inline-block';
   }
 }
 
-/* ── Conversion format columnar Grist → tableau d'objets ── */
-function toObjs(rec) {
-  const ks = Object.keys(rec);
-  if (!ks.length) return [];
-  return (rec.id || []).map((id, i) => {
-    const o = { id };
-    ks.forEach(k => { if (k !== 'id') o[k] = derefId(rec[k][i]); });
-    return o;
-  });
-}
-
-/* ── Normalise les 3 formats de valeur Reference Grist ── */
-function derefId(v) {
-  if (v === null || v === undefined)              return v;
-  if (Array.isArray(v) && v[0] === 'r')          return v[1];   // ["r", rowId]
-  if (typeof v === 'object' && 'id' in v)        return v.id;   // {id:N,...}
-  return v;                                                       // primitif
-}
 
 /* ═══════════════════════════════════════════════════════
    DONNÉES DÉMO
@@ -875,15 +959,24 @@ function loadDemo(){
       {id:10,Structure:2,TypeMission:'AutresMissions',Annee:2022,MontantTotal:107000,PartTransport:47,PartHebergement:35,PartRepas:18},
     ],
     commentaires:[
-      {id:1,Structure:1,Bloc:'contentieux',Commentaire:'RAS pour ce trimestre. Surveillance du dossier TA Paris.'},
-      {id:2,Structure:1,Bloc:'budget',Commentaire:'Sous-consommation CP investissement due au décalage du marché travaux.'},
-      {id:3,Structure:1,Bloc:'rh',Commentaire:'Poste DSI vacant depuis mars. Recrutement en cours.'},
-      {id:4,Structure:2,Bloc:'immobilier',Commentaire:'Bail Amiens : demande de renégociation du loyer engagée.'},
+      // Commentaires par bloc indicateur
+      {id:1, Structure:1,Bloc:'contentieux',  Commentaire:'RAS pour ce trimestre. Surveillance du dossier TA Paris.'},
+      {id:2, Structure:1,Bloc:'budget',       Commentaire:'Sous-consommation CP investissement due au décalage du marché travaux.'},
+      {id:3, Structure:1,Bloc:'rh',           Commentaire:'Poste DSI vacant depuis mars. Recrutement en cours.'},
+      {id:4, Structure:2,Bloc:'immobilier',   Commentaire:'Bail Amiens : demande de renégociation du loyer engagée.'},
+      // Bloc 'pointsAttention' : UNE ligne par structure = texte de synthèse
+      {id:5, Structure:1,Bloc:'pointsAttention',Commentaire:"Taux d'absentéisme en hausse de 8% sur le 1er trimestre. Sous-consommation CP investissement à surveiller."},
+      {id:6, Structure:2,Bloc:'pointsAttention',Commentaire:'Effectifs en dessous de la cible — 8 postes vacants. Vétusté du parc à traiter.'},
+      // Bloc 'chantier' : UNE ligne par chantier = une pillule (autant que souhaité)
+      {id:7, Structure:1,Bloc:'chantier',Commentaire:'Schéma directeur immobilier 2025-2030'},
+      {id:8, Structure:1,Bloc:'chantier',Commentaire:'Plan de GPEEC interministériel'},
+      {id:9, Structure:1,Bloc:'chantier',Commentaire:'Déploiement du nouveau SI RH'},
+      {id:10,Structure:1,Bloc:'chantier',Commentaire:'Audit organisationnel Q3'},
+      {id:11,Structure:2,Bloc:'chantier',Commentaire:'Plan de recrutement prioritaire T2'},
+      {id:12,Structure:2,Bloc:'chantier',Commentaire:'Renouvellement parc véhicules (2 VL)'},
+      {id:13,Structure:2,Bloc:'chantier',Commentaire:'Renégociation bail Amiens'},
     ],
-    pointsAttn:[
-      {id:1,Structure:1,PointsAttention:"Taux d'absentéisme en hausse. Sous-consommation CP investissement à surveiller.",ChantierStructurant1:'Schéma directeur immobilier 2025-2030',ChantierStructurant2:'Plan de GPEEC interministériel',ChantierStructurant3:'Déploiement SI RH'},
-      {id:2,Structure:2,PointsAttention:"8 postes vacants. Taux de vétusté du parc véhicules à traiter.",ChantierStructurant1:'Plan de recrutement prioritaire T2',ChantierStructurant2:'Renouvellement parc véhicules',ChantierStructurant3:'Renégociation bail Amiens'},
-    ],
+
   };
   build();
 }
@@ -1254,67 +1347,23 @@ function buildPdfHTML(s, blocs, inclAttn, inclDR){
   const vh=(D.vehicules||[]).find(r=>r[CFG.c.VH.struct]==id);
   const fm=(D.fraisMission||[]).filter(r=>r[CFG.c.FM.struct]==id);
   const cm=(D.commentaires||[]).filter(r=>r[CFG.c.CM.struct]==id);
-  const pa=(D.pointsAttn||[]).find(r=>r[CFG.c.PA.struct]==id);
-  const drs=s[CFG.c.S.type]==='DI'?(D.structures||[]).filter(r=>r[CFG.c.S.type]==='DR'&&r[CFG.c.S.parent]==id):[];
 
-  // Styles inline pour le rendu hors-DOM
-  const css=`<style>
-    *{margin:0;padding:0;box-sizing:border-box;}
-    body{font-family:Arial,sans-serif;font-size:12px;color:#1E2D3D;background:#fff;}
-    .hdr{background:#002F6C;color:#fff;padding:14px 18px;border-radius:6px;margin-bottom:12px;}
-    .hdr h2{font-size:18px;font-weight:700;margin-bottom:4px;}
-    .hdr .sub{font-size:12px;opacity:.8;}
-    .attn{background:#FFFBF0;border:2px solid #D4A800;border-left:5px solid #C09000;border-radius:5px;padding:10px 14px;margin-bottom:10px;}
-    .attn h4{font-size:10px;font-weight:700;color:#7A5800;text-transform:uppercase;margin-bottom:5px;}
-    .attn p{font-size:11.5px;color:#4A3A00;}
-    .pills{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;}
-    .pill{background:#FFF0A0;border:1px solid #C8A000;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600;color:#5A3D00;}
-    .sec{background:#fff;border:1px solid #CDD6E4;border-radius:6px;margin-bottom:10px;overflow:hidden;break-inside:avoid;}
-    .sec-hdr{background:#002F6C;color:#fff;padding:8px 14px;font-size:12px;font-weight:700;}
-    .sec-body{padding:12px 14px;}
-    .krow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
-    .k{flex:1;min-width:80px;background:#EEF2F7;padding:8px;border-radius:5px;border-left:3px solid #1351A8;text-align:center;}
-    .k.r{border-left-color:#B52020;}.k.v{border-left-color:#1A6B3C;}.k.o{border-left-color:#C05A00;}
-    .kv{font-size:16px;font-weight:700;color:#002F6C;}.k.r .kv{color:#B52020;}.k.v .kv{color:#1A6B3C;}.k.o .kv{color:#C05A00;}
-    .kl{font-size:9.5px;color:#4A5A6A;}
-    .sub-t{font-size:10px;font-weight:700;color:#002F6C;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #CDD6E4;padding-bottom:3px;margin:8px 0 5px;}
-    table{width:100%;border-collapse:collapse;font-size:10.5px;}
-    th{background:#E6ECF8;color:#002F6C;padding:5px 7px;text-align:left;font-weight:700;font-size:10px;border-bottom:2px solid #CDD6E4;}
-    td{padding:5px 7px;border-bottom:1px solid #CDD6E4;}
-    .tr{text-align:right;}.tc{text-align:center;}
-    .pb{height:7px;background:#EEF2F7;border-radius:3px;overflow:hidden;margin-top:2px;}
-    .pf{height:100%;border-radius:3px;}
-    .ok{background:#1A6B3C;}.warn{background:#C05A00;}.danger{background:#B52020;}
-    .cmt{margin-top:8px;border-top:1px dashed #CDD6E4;padding-top:7px;font-size:10.5px;color:#4A5A6A;font-style:italic;}
-    .occ-p{background:#E6ECF8;color:#002F6C;padding:1px 6px;border-radius:8px;font-size:9px;font-weight:700;}
-    .occ-b{background:#FFF0E0;color:#C05A00;padding:1px 6px;border-radius:8px;font-size:9px;font-weight:700;}
-    .dr-sec{background:#F5F8FF;border-left:3px solid #1351A8;padding:7px 10px;margin-top:6px;border-radius:0 4px 4px 0;font-size:11px;}
-    .dr-name{font-weight:700;color:#002F6C;margin-bottom:3px;}
-    .brow{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
-    .byear{width:36px;font-size:10px;color:#4A5A6A;text-align:right;flex-shrink:0;}
-    .btype{width:80px;font-size:9.5px;color:#4A5A6A;flex-shrink:0;}
-    .bout{flex:1;height:14px;background:#EEF2F7;border-radius:3px;overflow:hidden;display:flex;}
-    .bseg{height:100%;}
-    .bt{background:#1351A8;}.bh{background:#C05A00;}.br{background:#1A6B3C;}
-    .btot{width:60px;font-size:10px;font-weight:700;text-align:right;flex-shrink:0;}
-  </style>`;
-
-  let html=css;
-
-  // En-tête structure
+  // En-tête + points d&#39;attention
   if(blocs.includes('header')){
-    html+=`<div class="hdr">
-      <h2>${s[CFG.c.S.nom]}</h2>
-      <div class="sub">${s[CFG.c.S.type]}${s[CFG.c.S.region]?' — '+s[CFG.c.S.region]:''} | Responsable : ${s[CFG.c.S.chef]||'—'} | Données au ${s[CFG.c.S.maj]||'N/A'}</div>
-    </div>`;
-    // Points d'attention
-    if(inclAttn && pa){
-      const chantiers=[pa[CFG.c.PA.c1],pa[CFG.c.PA.c2],pa[CFG.c.PA.c3]].filter(Boolean);
-      html+=`<div class="attn">
-        <h4>⚠️ Points d'attention &amp; chantiers structurants</h4>
-        <p>${pa[CFG.c.PA.txt]||'Aucun point d\'attention.'}</p>
-        ${chantiers.length?`<div class="pills">${chantiers.map(c=>`<span class="pill">🔧 ${c}</span>`).join('')}</div>`:''}
-      </div>`;
+    const paRec    = cm.find(x => x[CFG.c.CM.bloc]==='pointsAttention');
+    const chantiers = cm.filter(x => x[CFG.c.CM.bloc]==='chantier').map(x=>x[CFG.c.CM.txt]).filter(Boolean);
+    const paTxt = paRec ? (paRec[CFG.c.CM.txt]||'') : '';
+    html+='<div class="hdr">'
+      +'<h2>'+s[CFG.c.S.nom]+'</h2>'
+      +'<div class="sub">'+s[CFG.c.S.type]+(s[CFG.c.S.region]?' &mdash; '+s[CFG.c.S.region]:'')
+      +' | Responsable : '+(s[CFG.c.S.chef]||'&mdash;')
+      +' | Données au '+(s[CFG.c.S.maj]||'N/A')+'</div>'
+      +'</div>';
+    if(inclAttn){
+      html+='<div class="attn"><h4>Points d&#39;attention &amp; chantiers structurants</h4>'
+        +'<p>'+(paTxt||'Aucun point d&#39;attention.')+'</p>'
+        +(chantiers.length?'<div class="pills">'+chantiers.map(function(c){return'<span class="pill">'+c+'</span>';}).join('')+'</div>':'')
+        +'</div>';
     }
   }
 
@@ -1488,9 +1537,8 @@ function renderFiche(s){
   const vh=(D.vehicules||[]).find(r=>r[CFG.c.VH.struct]==id);
   const fm=(D.fraisMission||[]).filter(r=>r[CFG.c.FM.struct]==id);
   const cm=(D.commentaires||[]).filter(r=>r[CFG.c.CM.struct]==id);
-  const pa=(D.pointsAttn||[]).find(r=>r[CFG.c.PA.struct]==id);
   const drs=s[CFG.c.S.type]==='DI'?(D.structures||[]).filter(r=>r[CFG.c.S.type]==='DR'&&r[CFG.c.S.parent]==id):[];
-  body.innerHTML=renderHeader(s)+renderPointsAttn(pa)+`<div class="grid">`+renderContentieux(ct,cm,drs)+renderRH(rh,cm,drs)+renderBudget(bu,cm)+renderVehicules(vh,cm,drs)+renderImmobilier(im,cm)+renderFraisMission(fm,cm)+`</div>`;
+  body.innerHTML=renderHeader(s)+renderPointsAttn(cm)+`<div class="grid">`+renderContentieux(ct,cm,drs)+renderRH(rh,cm,drs)+renderBudget(bu,cm)+renderVehicules(vh,cm,drs)+renderImmobilier(im,cm)+renderFraisMission(fm,cm)+`</div>`;
 }
 
 function renderHeader(s){
@@ -1499,11 +1547,23 @@ function renderHeader(s){
   const logoH=logo?`<img src="${logo}" alt="Logo">`:`<svg viewBox="0 0 64 64" width="64" xmlns="http://www.w3.org/2000/svg" opacity=".3"><rect x="8" y="22" width="48" height="32" rx="2" fill="#002F6C"/><rect x="24" y="10" width="16" height="14" rx="1" fill="#002F6C"/><rect x="14" y="36" width="14" height="18" rx="1" fill="#fff"/><rect x="36" y="36" width="14" height="12" rx="1" fill="#fff"/></svg><span>Logo 180×221 px</span>`;
   return`<div class="fiche-header"><div class="logo-box">${logoH}</div><div class="hdr-info"><h2>${s[c.nom]}</h2><div class="hdr-sous">${s[c.type]}${s[c.region]?' — '+s[c.region]:''}</div><div class="hdr-meta">${s[c.chef]?`<div class="meta-pill">👤 <strong>Responsable :</strong> ${s[c.chef]}</div>`:''} ${s[c.region]?`<div class="meta-pill">📍 <strong>Région :</strong> ${s[c.region]}</div>`:''}</div><div class="hdr-date">Données au ${s[c.maj]||'N/A'}</div></div></div>`;
 }
-function renderPointsAttn(pa){
-  const c=CFG.c.PA;
-  const txt=pa?pa[c.txt]:'';
-  const chantiers=pa?[pa[c.c1],pa[c.c2],pa[c.c3]].filter(Boolean):[];
-  return`<div class="attn-box"><div class="attn-title">⚠️ Points d'attention &amp; chantiers structurants</div><div class="attn-text">${txt||'<em style="color:#9A7A20">Aucun point d\'attention renseigné.</em>'}</div>${chantiers.length?`<div class="attn-chantiers">${chantiers.map(c=>`<span class="chantier-pill">🔧 ${c}</span>`).join('')}</div>`:''}</div>`;
+function renderPointsAttn(cm){
+  // Table Commentaires, deux blocs dédiés :
+  //   Bloc='pointsAttention'  → texte libre de synthèse (1 ligne)
+  //   Bloc='chantier'         → une pillule par ligne (N lignes, sans limite)
+  const c = CFG.c.CM;
+  const paRec     = cm.find(r => r[c.bloc] === 'pointsAttention');
+  const chantiers = cm.filter(r => r[c.bloc] === 'chantier').map(r => r[c.txt]).filter(Boolean);
+  const txt = paRec ? (paRec[c.txt] || '') : '';
+
+  return '<div class="attn-box">' +
+    '<div class="attn-title">&#9888;&#65039; Points d&#39;attention &amp; chantiers structurants</div>' +
+    '<div class="attn-text">' + (txt || '<em style="color:#9A7A20">Aucun point d&#39;attention &mdash; ajoutez une ligne Bloc=pointsAttention dans la table Commentaires.</em>') + '</div>' +
+    (chantiers.length
+      ? '<div class="attn-chantiers">' + chantiers.map(function(ch){ return '<span class="chantier-pill">&#128295; ' + ch + '</span>'; }).join('') + '</div>'
+      : '<div style="font-size:10.5px;color:#9A7A20;margin-top:8px;font-style:italic">Ajoutez des lignes Bloc=chantier dans la table Commentaires pour afficher des chantiers structurants.</div>'
+    ) +
+    '</div>';
 }
 function renderContentieux(data,cms,drs){
   const c=CFG.c.CT, cm=cms.find(x=>x[CFG.c.CM.bloc]==='contentieux');
@@ -1603,7 +1663,6 @@ function openDiag(){
     vehicules: 'VH',
     fraisMission: 'FM',
     commentaires: 'CM',
-    pointsAttn: 'PA'
   };
 
   let lines = '<h3 style="margin-bottom:12px;color:#002F6C;font-size:14px">🔧 Diagnostic des données Grist</h3>';
