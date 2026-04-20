@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
+<meta charset="UTF-8"><!-- upd-1776686598 -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Consolidation Globale — Indicateurs de gestion</title>
 <style>
@@ -275,12 +275,15 @@ body{font-family:'Cabin',sans-serif;background:#F2F5FA;color:var(--gris1);font-s
 <script>
 /* ── Fonctions utilitaires — définies en premier ── */
 function n(v){ var x=parseFloat(v); return isNaN(x)?0:x; }
+/* Extrait un nombre depuis une valeur Moyennes qui peut être "26,9" ou "25,9 %" ou 71 */
+function nPct(v){ if(v==null) return 0; var s=String(v).replace(',','.').replace(/[^0-9.]/g,''); var x=parseFloat(s); return isNaN(x)?0:x; }
+
 function strVal(v){ if(Array.isArray(v)) return v[1]||''; return v==null?'':String(v); }
 
 
 /* ════════ CONFIG ════════ */
 const CFG={
-  tables:{structures:'Structures',contentieux:'Contentieux',budget:'Budget',rh:'RH',immobilier:'Immobilier',vehicules:'Vehicules',fraisMission:'FraisMission'},
+  tables:{structures:'Structures',contentieux:'Contentieux',budget:'Budget',rh:'RH',immobilier:'Immobilier',vehicules:'Vehicules',fraisMission:'FraisMission',moyennes:'Moyennes'},
   c:{
     S:{id:'id',nom:'Nom',type:'Type',parent:'Parent',region:'Region'},
     CT:{struct:'Structure',nb:'NombreTotal',cannabis:'KgCannabis',cocaine:'KgCocaine',tabac:'KgTabac'},
@@ -289,6 +292,7 @@ const CFG={
     IM:{struct:'Structure',site:'NomSite',occ:'TypeOccupation',adr:'Adresse',m2:'M2Occupes',cout:'CoutGestionM2',loyer:'LoyerAnnuel'},
     VH:{struct:'Structure',nb:'NbVehicules',vet_s:'TauxVetusteStructure',vet_n:'TauxVetusteMoyenNational',vpa_s:'VehiculesParAgent',vpa_n:'VehiculesMoyenNational'},
     FM:{struct:'Structure',type:'TypeMission',annee:'Annee',mt:'MontantTotal',tr:'PartTransport',hb:'PartHebergement',rp:'PartRepas'},
+    MO:{vet_n:'TauxVetusteMoyenNational',vpa_n:'VehiculesMoyenNational',age_n:'AgeMoyenNational',abs_n:'AbsenteismeMoyenNational',jf_n:'JoursFormationMoyenNational',cae_n:'ConsoAEMoyenNational',ccp_n:'ConsoCPMoyenNational',annee:'Annee'}
   }
 };
 let D={}, curTab='budget';
@@ -501,33 +505,52 @@ function tabBudget(){
   const c=CFG.c.B, structs=ordered(), bud=D.budget||[];
   const types=['Fonctionnement','Investissement','Intervention'];
 
-  // Totaux globaux toutes structures, tous types
+  // KPI globaux — AE + CP toutes structures, année courante
   let totAEn=0,totAEc=0,totCPn=0,totCPc=0;
   bud.forEach(r=>{ totAEn+=n(r[c.ae_n]); totAEc+=n(r[c.ae_c]); totCPn+=n(r[c.cp_n]); totCPc+=n(r[c.cp_c]); });
   const pAE=totAEn?Math.round(totAEc/totAEn*100):0;
   const pCP=totCPn?Math.round(totCPc/totCPn*100):0;
 
-  // Lignes
+  // ── Tableau : une ligne AE + une ligne CP par (structure × type) ──
   const rows=structs.map(s=>{
     const sb=bud.filter(r=>r[c.struct]==s.id);
-    if(!sb.length) return `<tr class="r-${s.Type}"><td><span class="badge b-${s.Type}">${s.Type}</span> ${s[CFG.c.S.nom]}</td><td colspan="9" class="tc" style="color:var(--gris3)">—</td></tr>`;
+    if(!sb.length) return `<tr class="r-${s.Type}"><td colspan="9" style="font-weight:600;padding:6px 10px;"><span class="badge b-${s.Type}">${s.Type}</span> ${s[CFG.c.S.nom]}&nbsp;&mdash;&nbsp;<span style="color:var(--gris3)">Pas de données</span></td></tr>`;
+
     return types.map((t,ti)=>{
       const r=sb.find(x=>strVal(x[c.typeb])===t);
-      if(!r) return `<tr class="r-${s.Type}">
-        <td style="font-weight:600">${ti===0?`<span class="badge b-${s.Type}">${s.Type}</span> ${s[CFG.c.S.nom]}`:'↳'}</td>
-        <td style="color:var(--gris3);font-size:11px">${t}</td><td colspan="8" class="tc" style="color:var(--gris3)">—</td></tr>`;
+      if(!r) return `<tr class="r-${s.Type}">${ti===0?`<td rowspan="${types.length*2}" style="font-weight:600;vertical-align:middle;"><span class="badge b-${s.Type}">${s.Type}</span><br>${s[CFG.c.S.nom]}</td>`:''}<td rowspan="2" style="font-size:10.5px;color:var(--gris2);font-weight:600;vertical-align:middle;">${t}</td><td colspan="7" class="tc" style="color:var(--gris3)">—</td></tr><tr class="r-${s.Type}"></tr>`;
+
       const aen=n(r[c.ae_n]),aed=n(r[c.ae_d]),aec=n(r[c.ae_c]);
       const cpn=n(r[c.cp_n]),cpd=n(r[c.cp_d]),cpc=n(r[c.cp_c]);
       const pae=aed?Math.round(aec/aed*100):aen?Math.round(aec/aen*100):0;
       const pcp=cpd?Math.round(cpc/cpd*100):cpn?Math.round(cpc/cpn*100):0;
       const ca=pae>95?'mf-danger':pae>80?'mf-warn':'mf-ok';
       const cc=pcp>95?'mf-danger':pcp>80?'mf-warn':'mf-ok';
+
+      // Comparaison N-1 : chercher la ligne de l'année précédente
+      const annee=n(r[c.annee]);
+      const rN1=sb.find(x=>strVal(x[c.typeb])===t&&n(x[c.annee])===annee-1);
+      const aecN1=rN1?n(rN1[c.ae_c]):null;
+      const cpcN1=rN1?n(rN1[c.cp_c]):null;
+      const deltaAE=aecN1!==null?aec-aecN1:null;
+      const deltaCP=cpcN1!==null?cpc-cpcN1:null;
+      const deltaTag=(delta,base)=>{
+        if(delta===null||!base) return '';
+        const pct=Math.round(delta/base*100);
+        const cls=delta>0?'vs-bad':'vs-ok'; // hausse = mauvais (dépense), baisse = bon
+        return `<span class="vs ${cls}" style="font-size:9px;margin-left:4px;">${delta>0?'▲+':'▼'}${fmt(Math.abs(delta))}&#160;€ (${pct>0?'+':''}${pct}%)</span>`;
+      };
+
       return `<tr class="r-${s.Type}">
-        <td style="font-weight:600">${ti===0?`<span class="badge b-${s.Type}">${s.Type}</span> ${s[CFG.c.S.nom]}`:'↳'}</td>
-        <td style="font-size:10.5px;color:var(--gris2);font-weight:600">${strVal(t)||t}</td>
-        <td class="tr">${fmt(aen)}</td><td class="tr">${fmt(aed)}</td><td class="tr">${fmt(aec)}</td>
+        ${ti===0?`<td rowspan="${types.length*2}" style="font-weight:600;vertical-align:middle;border-right:2px solid var(--bord);"><span class="badge b-${s.Type}">${s.Type}</span><br><span style="font-size:10px;">${s[CFG.c.S.nom]}</span></td>`:''}
+        <td rowspan="2" style="font-size:10.5px;color:var(--gris2);font-weight:600;vertical-align:middle;border-right:1px solid var(--bord);">${t}</td>
+        <td style="background:#E8F0FB;font-size:9px;color:#002F6C;font-weight:700;padding:3px 7px;">AE</td>
+        <td class="tr">${fmt(aen)}</td><td class="tr">${fmt(aed)}</td><td class="tr">${fmt(aec)}${deltaTag(deltaAE,aecN1)}</td>
         <td class="tc"><div>${pae}%</div><div class="mbar"><div class="mfill ${ca}" style="width:${pae}%"></div></div></td>
-        <td class="tr">${fmt(cpn)}</td><td class="tr">${fmt(cpd)}</td><td class="tr">${fmt(cpc)}</td>
+      </tr>
+      <tr class="r-${s.Type}">
+        <td style="background:#FFF3E0;font-size:9px;color:#7A3800;font-weight:700;padding:3px 7px;">CP</td>
+        <td class="tr">${fmt(cpn)}</td><td class="tr">${fmt(cpd)}</td><td class="tr">${fmt(cpc)}${deltaTag(deltaCP,cpcN1)}</td>
         <td class="tc"><div>${pcp}%</div><div class="mbar"><div class="mfill ${cc}" style="width:${pcp}%"></div></div></td>
       </tr>`;
     }).join('');
@@ -535,31 +558,42 @@ function tabBudget(){
 
   return `
   <div class="kpi-global">
-    <div class="kg-card"><div class="kg-val" style="font-size:18px">${fmt(totAEn)} €</div><div class="kg-lbl">AE notifiées (total)</div></div>
-    <div class="kg-card vert"><div class="kg-val vert" style="font-size:18px">${fmt(totAEc)} €</div><div class="kg-lbl">AE consommées</div></div>
-    <div class="kg-card"><div class="kg-val">${pAE}%</div><div class="kg-lbl">Taux exec. AE global</div></div>
-    <div class="kg-card"><div class="kg-val" style="font-size:18px">${fmt(totCPn)} €</div><div class="kg-lbl">CP notifiées (total)</div></div>
-    <div class="kg-card vert"><div class="kg-val vert" style="font-size:18px">${fmt(totCPc)} €</div><div class="kg-lbl">CP consommées</div></div>
-    <div class="kg-card"><div class="kg-val">${pCP}%</div><div class="kg-lbl">Taux exec. CP global</div></div>
+    ${(function(){
+      const mo=(D.moyennes||[])[0]||{};
+      const caeN=nPct(mo[CFG.c.MO.cae_n]);
+      const ccpN=nPct(mo[CFG.c.MO.ccp_n]);
+      const diffAE=caeN?(pAE-caeN>0?'<span style="color:#B52020">▲ +'+(pAE-caeN).toFixed(1)+'pts vs nat.</span>':'<span style="color:#1A6B3C">▼ '+(pAE-caeN).toFixed(1)+'pts vs nat.</span>'):'';
+      const diffCP=ccpN?(pCP-ccpN>0?'<span style="color:#B52020">▲ +'+(pCP-ccpN).toFixed(1)+'pts vs nat.</span>':'<span style="color:#1A6B3C">▼ '+(pCP-ccpN).toFixed(1)+'pts vs nat.</span>'):'';
+      return '<div class="kg-card" style="border-top-color:#002F6C">'
+        +'<div style="font-size:10px;font-weight:700;color:#002F6C;margin-bottom:6px;">AUTORISATIONS D&#39;ENGAGEMENT</div>'
+        +'<div style="display:flex;gap:8px;justify-content:center;">'
+        +'<div><div class="kg-val" style="font-size:18px">'+fmt(totAEn)+' €</div><div class="kg-lbl">Notifiées</div></div>'
+        +'<div><div class="kg-val vert" style="font-size:18px">'+fmt(totAEc)+' €</div><div class="kg-lbl">Consommées</div></div>'
+        +'<div><div class="kg-val">'+pAE+'%</div><div class="kg-lbl">Taux exec. '+(caeN?'(nat. '+caeN+'%)<br>'+diffAE:'')+'</div></div>'
+        +'</div></div>'
+        +'<div class="kg-card" style="border-top-color:#C05A00">'
+        +'<div style="font-size:10px;font-weight:700;color:#C05A00;margin-bottom:6px;">CRÉDITS DE PAIEMENT</div>'
+        +'<div style="display:flex;gap:8px;justify-content:center;">'
+        +'<div><div class="kg-val" style="font-size:18px">'+fmt(totCPn)+' €</div><div class="kg-lbl">Notifiés</div></div>'
+        +'<div><div class="kg-val vert" style="font-size:18px">'+fmt(totCPc)+' €</div><div class="kg-lbl">Consommés</div></div>'
+        +'<div><div class="kg-val">'+pCP+'%</div><div class="kg-lbl">Taux exec. '+(ccpN?'(nat. '+ccpN+'%)<br>'+diffCP:'')+'</div></div>'
+        +'</div></div>';
+    })()}
   </div>
   <div class="twrap">
     <div class="twrap-title">💶 Budget par structure — ${new Date().getFullYear()}</div>
     <div class="tscroll">
     <table class="ct">
       <thead><tr>
-        <th rowspan="2">Structure</th><th rowspan="2">Type</th>
-        <th colspan="4" style="text-align:center;border-left:2px solid var(--bord)">Autorisations d'Engagement (€)</th>
-        <th colspan="4" style="text-align:center;border-left:2px solid var(--bord)">Crédits de Paiement (€)</th>
+        <th rowspan="2">Structure</th><th rowspan="2">Type budg.</th><th rowspan="2">AE/CP</th>
+        <th class="tr">Notif.</th><th class="tr">Mis à dispo</th><th class="tr">Consommé</th><th class="tc">Taux exec.</th>
       </tr><tr>
-        <th style="border-left:2px solid var(--bord)">Notifiées</th><th>Mises à dispo</th><th>Consommées</th><th>Taux</th>
-        <th style="border-left:2px solid var(--bord)">Notifiées</th><th>Mises à dispo</th><th>Consommées</th><th>Taux</th>
+        <th class="tr" style="font-size:9px;color:var(--gris3)">€</th>
+        <th class="tr" style="font-size:9px;color:var(--gris3)">€</th>
+        <th class="tr" style="font-size:9px;color:var(--gris3)">€ (vs N-1)</th>
+        <th></th>
       </tr></thead>
       <tbody>${rows}</tbody>
-      <tfoot><tr>
-        <td colspan="2">TOTAL</td>
-        <td class="tr">${fmt(totAEn)} €</td><td>—</td><td class="tr">${fmt(totAEc)} €</td><td class="tc">${pAE}%</td>
-        <td class="tr">${fmt(totCPn)} €</td><td>—</td><td class="tr">${fmt(totCPc)} €</td><td class="tc">${pCP}%</td>
-      </tr></tfoot>
     </table>
     </div>
   </div>`;
@@ -692,7 +726,7 @@ function tabVehicules(){
   const c=CFG.c.VH, structs=ordered(), vh=D.vehicules||[];
   const totVeh=vh.reduce((s,r)=>s+n(r[c.nb]),0);
   const avgVet=vh.length?Math.round(vh.reduce((s,r)=>s+n(r[c.vet_s]),0)/vh.length):0;
-  const nat=vh.length?n(vh[0][c.vet_n]):0;
+  const moData=(D.moyennes||[])[0]||{}; const nat=nPct(moData[CFG.c.MO.vet_n])||( vh.length?n(vh[0][c.vet_n]):0);
 
   const rows=structs.map(s=>{
     const r=vh.find(x=>x[c.struct]==s.id);

@@ -643,6 +643,9 @@ body{font-family:'Cabin',sans-serif;background:#F2F5FA;color:var(--gris1);line-h
 <script>
 /* ── Fonctions utilitaires globales — définies en premier ── */
 function n(v){ var x=parseFloat(v); return isNaN(x)?0:x; }
+/* Extrait un nombre depuis une valeur Moyennes qui peut être "26,9" ou "25,9 %" ou 71 */
+function nPct(v){ if(v==null) return 0; var s=String(v).replace(',','.').replace(/[^0-9.]/g,''); var x=parseFloat(s); return isNaN(x)?0:x; }
+
 /* Grist peut renvoyer les Choice comme ["L","valeur"] — on extrait la chaîne */
 function strVal(v){ if(Array.isArray(v)) return v[1]||''; return v==null?'':String(v); }
 function fmt(v){ return v!=null?Number(v).toLocaleString('fr-FR'):'—'; }
@@ -663,7 +666,7 @@ const CFG={
     IM:{struct:'Structure',site:'NomSite',occ:'TypeOccupation',adr:'Adresse',m2:'M2Occupes',cout:'CoutGestionM2',loyer:'LoyerAnnuel'},
     VH:{struct:'Structure',nb:'NbVehicules',vet_s:'TauxVetusteStructure',vpa_s:'VehiculesParAgent'},
     // Moyennes nationales lues depuis la table Moyennes (formules Grist)
-    MO:{vet_n:'TauxVetusteMoyenNational',vpa_n:'VehiculesMoyenNational',age_n:'AgeMoyenNational',abs_n:'AbsenteismeMoyenNational'},
+    MO:{vet_n:'TauxVetusteMoyenNational',vpa_n:'VehiculesMoyenNational',age_n:'AgeMoyenNational',abs_n:'AbsenteismeMoyenNational',jf_n:'JoursFormationMoyenNational',cae_n:'ConsoAEMoyenNational',ccp_n:'ConsoCPMoyenNational',annee:'Annee'},
     FM:{struct:'Structure',type:'TypeMission',annee:'Annee',mt:'MontantTotal',tr:'PartTransport',hb:'PartHebergement',rp:'PartRepas'},
     // Commentaires : Bloc peut valoir 'contentieux','budget','rh','immobilier',
     //   'vehicules','fraisMission', 'pointsAttention' (texte libre) ou 'chantier' (une pillule par ligne)
@@ -995,7 +998,7 @@ function loadDemo(){
     ],
     moyennes:[
       // Une seule ligne — les formules Grist calculent automatiquement
-      {id:1,TauxVetusteMoyenNational:32,VehiculesMoyenNational:0.28,AgeMoyenNational:43.5,AbsenteismeMoyenNational:440},
+      {id:1,TauxVetusteMoyenNational:26.9,VehiculesMoyenNational:'25,9 %',AgeMoyenNational:43.2,AbsenteismeMoyenNational:431.6,JoursFormationMoyenNational:3.7,ConsoAEMoyenNational:'71 %',ConsoCPMoyenNational:'69 %',Annee:2026},
     ],
     commentaires:[
       // Commentaires par bloc indicateur
@@ -1857,7 +1860,7 @@ function renderRH(d,cms,drs){
   const c=CFG.c.RH, cm=cms.find(x=>x[CFG.c.CM.bloc]==='rh');
   if(!d) return secEmpty('👥','Situation RH',cm,'','rh');
   const rem=n(d[c.rem]),cib=n(d[c.cib]), pct=cib?Math.round(rem/cib*100):0;
-  return`<div class="section"><div class="sec-hdr"><span class="ico">👥</span><h3>Situation RH</h3></div><div class="sec-body"><div class="kpi-row"><div class="kpi"><div class="kv">${rem}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Eff. rémunérés</div></div><div class="kpi"><div class="kv">${cib}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Eff. cibles</div></div><div class="kpi ${pct<90?'orange':'vert'}"><div class="kv">${pct}%</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Couverture</div></div></div><div class="prog-wrap"><div class="prog-label"><span>${rem}/${cib}</span><span>${pct}%</span></div><div class="prog-bar"><div class="prog-fill ${pct<90?'pf-warn':'pf-ok'}" style="width:${Math.min(pct,100)}%"></div></div></div><div class="kpi-row" style="margin-top:10px"><div class="kpi vert"><div class="kv" style="font-size:14px">${fmt(d[c.ms]||0)} €</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Masse salariale</div></div><div class="kpi"><div class="kv">${fmtD(d[c.jf]||0)}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">J. form./agent</div></div><div class="kpi orange"><div class="kv">${n(d[c.abs])}</div>${(function(){ var mo=(D.moyennes||[])[0]||{}; var absN=n(mo[CFG.c.MO.abs_n]); return absN?'<div class="kl" style="font-size:9.5px;color:var(--gris2)">abs. (moy.nat. '+absN+')</div>':'<div class="kl" style="font-size:10.5px;color:var(--gris2)">J. absentéisme</div>'; })()}</div><div class="kpi"><div class="kv">${fmtD(d[c.age]||0)}</div>${(function(){ var mo=(D.moyennes||[])[0]||{}; var ageN=n(mo[CFG.c.MO.age_n]); return ageN?'<div class="kl" style="font-size:9.5px;color:var(--gris2)">ans (moy.nat. '+fmtD(ageN)+')</div>':'<div class="kl" style="font-size:10.5px;color:var(--gris2)">Âge moyen</div>'; })()}</div></div>${drs.length?renderDRBlock(drs,'rh'):''}${renderCmt(cm,'rh',_curId)}</div></div>`;
+  return`<div class="section"><div class="sec-hdr"><span class="ico">👥</span><h3>Situation RH</h3></div><div class="sec-body"><div class="kpi-row"><div class="kpi"><div class="kv">${rem}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Eff. rémunérés</div></div><div class="kpi"><div class="kv">${cib}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Eff. cibles</div></div><div class="kpi ${pct<90?'orange':'vert'}"><div class="kv">${pct}%</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Couverture</div></div></div><div class="prog-wrap"><div class="prog-label"><span>${rem}/${cib}</span><span>${pct}%</span></div><div class="prog-bar"><div class="prog-fill ${pct<90?'pf-warn':'pf-ok'}" style="width:${Math.min(pct,100)}%"></div></div></div><div class="kpi-row" style="margin-top:10px"><div class="kpi vert"><div class="kv" style="font-size:14px">${fmt(d[c.ms]||0)} €</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Masse salariale</div></div><div class="kpi"><div class="kv">${fmtD(d[c.jf]||0)}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">J. form./agent</div></div><div class="kpi orange"><div class="kv">${n(d[c.abs])}</div>${(function(){ var mo=(D.moyennes||[])[0]||{}; var absN=nPct(mo[CFG.c.MO.abs_n]); return absN?'<div class="kl" style="font-size:9.5px;color:var(--gris2)">abs. (moy.nat. '+absN+')</div>':'<div class="kl" style="font-size:10.5px;color:var(--gris2)">J. absentéisme</div>'; })()}</div><div class="kpi"><div class="kv">${fmtD(d[c.age]||0)}</div>${(function(){ var mo=(D.moyennes||[])[0]||{}; var ageN=nPct(mo[CFG.c.MO.age_n]); return ageN?'<div class="kl" style="font-size:9.5px;color:var(--gris2)">ans (moy.nat. '+fmtD(ageN)+')</div>':'<div class="kl" style="font-size:10.5px;color:var(--gris2)">Âge moyen</div>'; })()}</div></div>${drs.length?renderDRBlock(drs,'rh'):''}${renderCmt(cm,'rh',_curId)}</div></div>`;
 }
 function renderImmobilier(sites,cms){
   const c=CFG.c.IM, cm=cms.find(x=>x[CFG.c.CM.bloc]==='immobilier');
@@ -1873,7 +1876,7 @@ function renderVehicules(v,cms,drs){
   if(!v) return secEmpty('🚗','Parc de véhicules',cm,'','vehicules');
   // Lire les moyennes nationales depuis la table Moyennes (1 seule ligne attendue)
   const mo=(D.moyennes||[])[0]||{};
-  const nb=n(v[c.nb]), vs=n(v[c.vet_s]), vn=n(mo[CFG.c.MO.vet_n]||v.TauxVetusteMoyenNational), ps=n(v[c.vpa_s]), pn=n(mo[CFG.c.MO.vpa_n]||v.VehiculesMoyenNational);
+  const nb=n(v[c.nb]), vs=n(v[c.vet_s]), vn=nPct(mo[CFG.c.MO.vet_n])||n(v.TauxVetusteMoyenNational), ps=n(v[c.vpa_s]), pn=nPct(mo[CFG.c.MO.vpa_n])||n(v.VehiculesMoyenNational);
   const clsV=vs>vn?'rouge':vs>vn*.8?'orange':'vert';
   const vsTag=vs>vn?`<span class="vs-nat vs-bad">▲ +${(vs-vn).toFixed(0)} pts vs national</span>`:`<span class="vs-nat vs-ok">▼ ${(vn-vs).toFixed(0)} pts vs national</span>`;
   const psTag=ps>pn?`<span class="vs-nat vs-bad">▲ +${(ps-pn).toFixed(2)} vs national</span>`:`<span class="vs-nat vs-ok">▼ ${(pn-ps).toFixed(2)} vs national</span>`;
