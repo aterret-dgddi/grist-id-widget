@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Diagnostic Grist</title>
+<style>
+body { font-family: monospace; background: #1a1a2e; color: #e0e0e0; padding: 20px; font-size: 13px; }
+h2 { color: #4fc3f7; margin-bottom: 16px; }
+.ok   { color: #81c784; }
+.warn { color: #ffb74d; }
+.err  { color: #e57373; }
+.box  { background: #16213e; border: 1px solid #0f3460; border-radius: 6px; padding: 14px; margin-bottom: 12px; }
+.label { color: #90caf9; font-weight: bold; margin-right: 8px; }
+pre { white-space: pre-wrap; word-break: break-all; margin: 0; }
+button { background: #0f3460; color: white; border: 1px solid #4fc3f7; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 12px; margin: 4px; }
+button:hover { background: #1a4a80; }
+#log { background: #0d0d1a; border: 1px solid #333; border-radius: 4px; padding: 10px; max-height: 300px; overflow-y: auto; font-size: 11px; }
+.log-ok   { color: #81c784; }
+.log-warn { color: #ffb74d; }
+.log-err  { color: #e57373; }
+.log-info { color: #90caf9; }
+</style>
+</head>
+<body>
+
+<h2>🔬 Diagnostic Widget Grist</h2>
+
+<div class="box">
+  <div><span class="label">SDK grist :</span><span id="sdk-status">⏳ vérification...</span></div>
+  <div style="margin-top:8px"><span class="label">docApi :</span><span id="docapi-status">⏳</span></div>
+  <div style="margin-top:8px"><span class="label">onRecords :</span><span id="onrecords-status">⏳</span></div>
+  <div style="margin-top:8px"><span class="label">Données reçues :</span><span id="data-status">⏳</span></div>
+</div>
+
+<div class="box">
+  <div class="label">Actions manuelles :</div>
+  <button onclick="testFetch('Structures')">fetchTable Structures</button>
+  <button onclick="testFetch('Budget')">fetchTable Budget</button>
+  <button onclick="testFetch('RH')">fetchTable RH</button>
+  <button onclick="testFetch('Commentaires')">fetchTable Commentaires</button>
+  <button onclick="testRestApi()">Test API REST</button>
+  <button onclick="logAllGrist()">Inspecter objet grist</button>
+</div>
+
+<div class="box">
+  <div class="label">Log :</div>
+  <div id="log"></div>
+</div>
+
+<script>
+/* ── Logging ── */
+function log(msg, type) {
+  type = type || 'info';
+  const d = document.getElementById('log');
+  const line = document.createElement('div');
+  line.className = 'log-' + type;
+  line.textContent = new Date().toLocaleTimeString('fr') + ' › ' + msg;
+  d.appendChild(line);
+  d.scrollTop = d.scrollHeight;
+  console.log('[Diag] ' + msg);
+}
+
+function setStatus(id, msg, type) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = msg;
+  el.className = type || '';
+}
+
+/* ── Vérification initiale ── */
+function checkInit() {
+  /* 1. SDK grist disponible ? */
+  if (typeof grist === 'undefined') {
+    setStatus('sdk-status', '❌ Non disponible — widget ouvert hors Grist ou SDK non injecté', 'err');
+    log('grist est undefined — le SDK nest pas injecté dans cette page', 'err');
+    log('Vérifiez que le widget est bien dans Grist (pas ouvert directement)', 'warn');
+    return;
+  }
+
+  setStatus('sdk-status', '✅ Disponible — type: ' + typeof grist, 'ok');
+  log('SDK grist disponible', 'ok');
+  log('Propriétés de grist: ' + Object.keys(grist).join(', '), 'info');
+
+  /* 2. docApi disponible ? */
+  if (typeof grist.docApi !== 'undefined') {
+    setStatus('docapi-status', '✅ Disponible — méthodes: ' + Object.keys(grist.docApi).join(', '), 'ok');
+    log('grist.docApi disponible: ' + Object.keys(grist.docApi).join(', '), 'ok');
+  } else {
+    setStatus('docapi-status', '⚠️ Non disponible (normal avant grist.ready())', 'warn');
+    log('grist.docApi non disponible — normal avant ready()', 'warn');
+  }
+
+  /* 3. Méthodes disponibles ? */
+  const methods = ['ready','onRecord','onRecords','onOptions','onNewRecord','docApi'];
+  methods.forEach(function(m) {
+    log('grist.' + m + ' : ' + typeof grist[m], typeof grist[m] === 'function' ? 'ok' : 'warn');
+  });
+
+  /* 4. Appeler grist.ready() */
+  log('Appel grist.ready({ requiredAccess: "full" })...', 'info');
+  try {
+    grist.ready({ requiredAccess: 'full' });
+    log('grist.ready() appelé sans erreur', 'ok');
+  } catch(e) {
+    log('grist.ready() erreur: ' + e.message, 'err');
+  }
+
+  /* 5. Enregistrer onRecords */
+  if (typeof grist.onRecords === 'function') {
+    setStatus('onrecords-status', '✅ Méthode disponible — en attente...', 'ok');
+    grist.onRecords(function(records, mappings) {
+      const n = records ? records.length : 0;
+      setStatus('data-status', '✅ ' + n + ' enregistrement(s) reçu(s) via onRecords', 'ok');
+      log('onRecords déclenché — ' + n + ' records', 'ok');
+      if (records && records[0]) {
+        log('Colonnes reçues: ' + Object.keys(records[0]).join(', '), 'info');
+        log('1er record: ' + JSON.stringify(records[0]), 'info');
+      }
+      /* Vérifier docApi maintenant */
+      if (typeof grist.docApi !== 'undefined') {
+        setStatus('docapi-status', '✅ Disponible après onRecords', 'ok');
+        log('grist.docApi disponible après onRecords !', 'ok');
+      }
+    });
+  } else {
+    setStatus('onrecords-status', '❌ Méthode indisponible', 'err');
+    log('grist.onRecords non disponible', 'err');
+  }
+
+  /* 6. Enregistrer onRecord comme fallback */
+  if (typeof grist.onRecord === 'function') {
+    grist.onRecord(function(record) {
+      log('onRecord déclenché — id: ' + (record && record.id), 'ok');
+      if (record) log('Colonnes onRecord: ' + Object.keys(record).join(', '), 'info');
+    });
+  }
+
+  /* 7. Vérifier docApi par polling */
+  let n = 0;
+  const poll = setInterval(function() {
+    n++;
+    if (n > 30) { clearInterval(poll); return; }
+    if (typeof grist.docApi !== 'undefined') {
+      clearInterval(poll);
+      setStatus('docapi-status', '✅ Apparu après ' + (n*500) + 'ms', 'ok');
+      log('grist.docApi apparu après ' + (n*500) + 'ms', 'ok');
+    }
+  }, 500);
+}
+
+/* ── Tests manuels ── */
+async function testFetch(tableName) {
+  log('=== testFetch("' + tableName + '") ===', 'info');
+
+  /* Méthode 1 : docApi */
+  if (typeof grist !== 'undefined' && typeof grist.docApi !== 'undefined') {
+    try {
+      log('Essai grist.docApi.fetchTable("' + tableName + '")...', 'info');
+      const raw = await grist.docApi.fetchTable(tableName);
+      const keys = Object.keys(raw);
+      const nb = raw.id ? raw.id.length : 0;
+      log('✅ docApi OK — ' + nb + ' lignes, colonnes: ' + keys.join(', '), 'ok');
+      if (nb > 0) log('1ere valeur id=' + raw.id[0] + ', exemple col[0]=' + JSON.stringify(raw[keys[0]] && raw[keys[0]][0]), 'info');
+      return;
+    } catch(e) {
+      log('❌ docApi erreur: ' + (e.message || String(e)), 'err');
+    }
+  } else {
+    log('⚠️ grist.docApi non disponible', 'warn');
+  }
+
+  /* Méthode 2 : API REST */
+  await testRestApiTable(tableName);
+}
+
+async function testRestApi() {
+  log('=== Test API REST ===', 'info');
+  /* Extraire docId depuis le message heartbeat visible dans la console Grist :
+     "docId":"7gGFmWHE9Uzozqpsvw5ufA" */
+  const docId = getDocId();
+  log('DocId détecté: ' + (docId || 'NON TROUVÉ'), docId ? 'ok' : 'err');
+  if (docId) await testRestApiTable('Structures');
+}
+
+async function testRestApiTable(tableName) {
+  const docId = getDocId();
+  if (!docId) {
+    log('Impossible de trouver le docId pour l\'API REST', 'err');
+    return;
+  }
+  const url = window.location.origin + '/api/docs/' + docId + '/tables/' + tableName + '/records';
+  log('GET ' + url, 'info');
+  try {
+    const resp = await fetch(url, { credentials: 'include' });
+    log('HTTP ' + resp.status + ' ' + resp.statusText, resp.ok ? 'ok' : 'err');
+    if (resp.ok) {
+      const json = await resp.json();
+      const nb = json.records ? json.records.length : 0;
+      log('✅ API REST OK — ' + nb + ' lignes', 'ok');
+      if (json.records && json.records[0]) {
+        log('Colonnes: ' + Object.keys(json.records[0].fields || {}).join(', '), 'info');
+        log('1er record: ' + JSON.stringify(json.records[0]), 'info');
+      }
+    } else {
+      const txt = await resp.text();
+      log('Réponse: ' + txt.slice(0, 200), 'err');
+    }
+  } catch(e) {
+    log('❌ fetch erreur: ' + (e.message || String(e)), 'err');
+    log('(CORS ou réseau)', 'warn');
+  }
+}
+
+function getDocId() {
+  /* Essai 1 : depuis grist */
+  if (typeof grist !== 'undefined') {
+    if (grist.docId) return grist.docId;
+    if (grist._docId) return grist._docId;
+  }
+  /* Essai 2 : depuis document.referrer */
+  try {
+    const m = document.referrer.match(/\/([a-zA-Z0-9]{20,})\//);
+    if (m) return m[1];
+    /* Format Grist : 7gGFmWHE9Uzozqpsvw5ufA (22 chars alphanumériques) */
+    const m2 = document.referrer.match(/\/([a-zA-Z0-9]{15,25})[/?]/);
+    if (m2) return m2[1];
+  } catch(e) {}
+  /* Essai 3 : hardcodé depuis la console (à remplir si besoin) */
+  return '7gGFmWHE9Uzozqpsvw5ufA'; // docId visible dans la console Grist
+}
+
+function logAllGrist() {
+  if (typeof grist === 'undefined') {
+    log('grist est undefined', 'err');
+    return;
+  }
+  log('=== Inspection complète de grist ===', 'info');
+  log('typeof grist: ' + typeof grist, 'info');
+  try {
+    const keys = Object.getOwnPropertyNames(grist);
+    keys.forEach(function(k) {
+      try { log('  grist.' + k + ' = ' + typeof grist[k] + (typeof grist[k] !== 'function' ? (' : ' + JSON.stringify(grist[k])) : '()'), 'info'); }
+      catch(e) { log('  grist.' + k + ' = [erreur lecture]', 'warn'); }
+    });
+  } catch(e) {
+    log('Erreur inspection: ' + e.message, 'err');
+  }
+}
+
+/* ── Démarrage ── */
+window.addEventListener('load', function() {
+  log('Page chargée — démarrage diagnostic...', 'info');
+  log('URL: ' + window.location.href, 'info');
+  log('Referrer: ' + (document.referrer || '(vide)'), 'info');
+  log('Origin: ' + window.location.origin, 'info');
+  setTimeout(checkInit, 200);
+});
+</script>
+</body>
+</html>
