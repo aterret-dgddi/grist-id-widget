@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Fiche de structure — Indicateurs de gestion</title>
-<!-- jsPDF + html2canvas pour export PDF natif --><!-- v3.final-20260420090524 -->
+<!-- jsPDF + html2canvas pour export PDF natif --><!-- v3.upd-1776686598 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
@@ -648,6 +648,8 @@ function strVal(v){ if(Array.isArray(v)) return v[1]||''; return v==null?'':Stri
 function fmt(v){ return v!=null?Number(v).toLocaleString('fr-FR'):'—'; }
 function fmtD(v){ return v!=null?Number(v).toLocaleString('fr-FR',{maximumFractionDigits:1}):'—'; }
 
+
+const LOGO_URL = 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1d/Logo_des_Douanes_Fran%C3%A7aises.svg/250px-Logo_des_Douanes_Fran%C3%A7aises.svg.png';
 /* ═══════════════════════════════════════════════════════
    CONFIG
 ═══════════════════════════════════════════════════════ */
@@ -1382,167 +1384,355 @@ async function generatePDF(structs, blocs, inclAttn, inclDR, inclDate){
 }
 
 function buildPdfHTML(s, blocs, inclAttn, inclDR){
-  const id=s.id;
-  const ct=(D.contentieux||[]).filter(r=>r[CFG.c.CT.struct]==id);
-  const bu=(D.budget||[]).filter(r=>r[CFG.c.B.struct]==id);
-  const rh=(D.rh||[]).find(r=>r[CFG.c.RH.struct]==id);
-  const im=(D.immobilier||[]).filter(r=>r[CFG.c.IM.struct]==id);
-  const vh=(D.vehicules||[]).find(r=>r[CFG.c.VH.struct]==id);
-  const fm=(D.fraisMission||[]).filter(r=>r[CFG.c.FM.struct]==id);
-  const cm=(D.commentaires||[]).filter(r=>r[CFG.c.CM.struct]==id);
-  // DR rattachées (pour les DI)
-  const drs=s[CFG.c.S.type]==='DI'
-    ?(D.structures||[]).filter(r=>r[CFG.c.S.type]==='DR'&&r[CFG.c.S.parent]==id)
-    :[];
-  // Variable html accumulatrice — DOIT être déclarée avant tout bloc
-  let html='';
+  /* ── Données ── */
+  var id   = s.id;
+  var ct   = (D.contentieux||[]).filter(function(r){return r[CFG.c.CT.struct]==id;});
+  var bu   = (D.budget||[]).filter(function(r){return r[CFG.c.B.struct]==id;});
+  var rh   = (D.rh||[]).find(function(r){return r[CFG.c.RH.struct]==id;});
+  var im   = (D.immobilier||[]).filter(function(r){return r[CFG.c.IM.struct]==id;});
+  var vh   = (D.vehicules||[]).find(function(r){return r[CFG.c.VH.struct]==id;});
+  var fm   = (D.fraisMission||[]).filter(function(r){return r[CFG.c.FM.struct]==id;});
+  var cm   = (D.commentaires||[]).filter(function(r){return r[CFG.c.CM.struct]==id;});
+  var drs  = s[CFG.c.S.type]==='DI'
+             ? (D.structures||[]).filter(function(r){return r[CFG.c.S.type]==='DR'&&r[CFG.c.S.parent]==id;})
+             : [];
 
-  // En-tête + points d&#39;attention
-  if(blocs.includes('header')){
-    const paRec    = cm.find(x => x[CFG.c.CM.bloc]==='pointsAttention');
-    const chantiers = cm.filter(x => x[CFG.c.CM.bloc]==='chantier').map(x=>x[CFG.c.CM.txt]).filter(Boolean);
-    const paTxt = paRec ? (paRec[CFG.c.CM.txt]||'') : '';
-    html+='<div class="hdr">'
-      +'<h2>'+s[CFG.c.S.nom]+'</h2>'
-      +'<div class="sub">'+s[CFG.c.S.type]+(s[CFG.c.S.region]?' &mdash; '+s[CFG.c.S.region]:'')
-      +' | Responsable : '+(s[CFG.c.S.chef]||'&mdash;')
-      +' | Données au '+(s[CFG.c.S.maj]||'N/A')+'</div>'
+  /* ── Styles inline réutilisables ── */
+  var CSS = {
+    page:    'font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#1E2D3D;background:#fff;padding:0;',
+    sec:     'margin-bottom:12px;border:1px solid #CDD6E4;border-radius:6px;overflow:hidden;page-break-inside:avoid;',
+    secHdr:  'background:#002F6C;color:#fff;padding:8px 12px;font-size:12px;font-weight:bold;',
+    secBody: 'padding:10px 12px;',
+    /* Tableau KPI horizontal */
+    kpiTbl:  'width:100%;border-collapse:collapse;margin-bottom:8px;',
+    kpiTd:   'background:#EEF2F7;border-radius:4px;padding:8px 6px;text-align:center;border:2px solid #CDD6E4;',
+    kpiVal:  'font-size:18px;font-weight:bold;color:#002F6C;line-height:1;',
+    kpiLbl:  'font-size:9px;color:#4A5A6A;margin-top:3px;',
+    /* Tableau de données */
+    tbl:     'width:100%;border-collapse:collapse;font-size:10px;margin-top:6px;',
+    th:      'background:#E6ECF8;color:#002F6C;padding:5px 7px;text-align:left;font-weight:bold;font-size:9.5px;border-bottom:2px solid #CDD6E4;',
+    thR:     'background:#E6ECF8;color:#002F6C;padding:5px 7px;text-align:right;font-weight:bold;font-size:9.5px;border-bottom:2px solid #CDD6E4;',
+    td:      'padding:5px 7px;border-bottom:1px solid #CDD6E4;vertical-align:middle;',
+    tdR:     'padding:5px 7px;border-bottom:1px solid #CDD6E4;text-align:right;vertical-align:middle;',
+    tdC:     'padding:5px 7px;border-bottom:1px solid #CDD6E4;text-align:center;vertical-align:middle;',
+    /* Barre progression */
+    pbWrap:  'background:#EEF2F7;border-radius:3px;height:6px;margin-top:2px;overflow:hidden;',
+    /* Sous-titre */
+    subT:    'font-size:10px;font-weight:bold;color:#002F6C;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid #CDD6E4;padding-bottom:3px;margin:8px 0 5px;',
+    /* Commentaire */
+    cmt:     'margin-top:8px;border-top:1px dashed #CDD6E4;padding-top:7px;font-size:10.5px;color:#4A5A6A;font-style:italic;',
+    /* DR */
+    dr:      'background:#F0F4FF;border-left:3px solid #1351A8;padding:6px 10px;margin-top:5px;border-radius:0 4px 4px 0;font-size:10px;',
+    /* Pill chantier */
+    pill:    'display:inline-block;background:#FFF0A0;border:1px solid #C8A000;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:bold;color:#5A3D00;margin:2px 3px 2px 0;',
+  };
+
+  /* Couleur KPI selon niveau */
+  function kpiColor(cls){
+    if(cls==='r') return '#B52020';
+    if(cls==='v') return '#1A6B3C';
+    if(cls==='o') return '#C05A00';
+    return '#002F6C';
+  }
+
+  /* Cellule KPI */
+  function kpiCell(val, lbl, cls){
+    var col = kpiColor(cls||'');
+    var bord = '3px solid '+(cls==='r'?'#B52020':cls==='v'?'#1A6B3C':cls==='o'?'#C05A00':'#1351A8');
+    return '<td style="'+CSS.kpiTd+'border-left:'+bord+'">'
+      +'<div style="'+CSS.kpiVal+'color:'+col+'">'+val+'</div>'
+      +'<div style="'+CSS.kpiLbl+'">'+lbl+'</div>'
+      +'</td>';
+  }
+
+  /* Barre de progression inline */
+  function progBar(pct, col){
+    var c = pct>95?'#B52020':pct>80?'#C05A00':'#1A6B3C';
+    if(col) c=col;
+    return '<div style="'+CSS.pbWrap+'">'
+      +'<div style="height:6px;width:'+Math.min(pct,100)+'%;background:'+c+';border-radius:3px;"></div>'
       +'</div>';
-    if(inclAttn){
-      html+='<div class="attn"><h4>Points d&#39;attention &amp; chantiers structurants</h4>'
-        +'<p>'+(paTxt||'Aucun point d&#39;attention.')+'</p>'
-        +(chantiers.length?'<div class="pills">'+chantiers.map(function(c){return'<span class="pill">'+c+'</span>';}).join('')+'</div>':'')
+  }
+
+  /* Commentaire */
+  function cmtBlock(cmRec){
+    if(!cmRec||!cmRec[CFG.c.CM.txt]) return '';
+    return '<div style="'+CSS.cmt+'">&#128172; '+cmRec[CFG.c.CM.txt]+'</div>';
+  }
+
+  var html = '';
+
+  /* ════════════════════════════════
+     EN-TÊTE + LOGO + POINTS ATTENTION
+  ════════════════════════════════ */
+  if(blocs.includes('header')){
+    var paRec     = cm.find(function(x){return x[CFG.c.CM.bloc]==='pointsAttention';});
+    var chantiers = cm.filter(function(x){return x[CFG.c.CM.bloc]==='chantier';})
+                      .map(function(x){return x[CFG.c.CM.txt];}).filter(Boolean);
+    var paTxt = paRec ? (paRec[CFG.c.CM.txt]||'') : '';
+
+    // En-tête avec logo à gauche
+    html += '<table style="width:100%;border-collapse:collapse;margin-bottom:12px;">'
+      +'<tr>'
+      // Logo
+      +'<td style="width:90px;vertical-align:middle;padding-right:14px;">'
+      +'<img src="'+LOGO_URL+'" style="width:80px;height:98px;object-fit:contain;" crossorigin="anonymous">'
+      +'</td>'
+      // Titre
+      +'<td style="vertical-align:top;background:#002F6C;padding:12px 16px;border-radius:0 6px 6px 0;">'
+      +'<div style="font-size:9px;color:#B0C4E8;font-weight:bold;letter-spacing:.8px;text-transform:uppercase;margin-bottom:4px;">Fiche identité</div>'
+      +'<div style="font-size:18px;font-weight:bold;color:#fff;line-height:1.2;margin-bottom:6px;">'+s[CFG.c.S.nom]+'</div>'
+      +'<div style="font-size:10px;color:#B0C4E8;">'
+        +s[CFG.c.S.type]+(s[CFG.c.S.region]?' &mdash; '+s[CFG.c.S.region]:'')
+        +(s[CFG.c.S.chef]?' | Responsable&#160;: '+s[CFG.c.S.chef]:'')
+        +(s[CFG.c.S.maj]?' | Données au '+s[CFG.c.S.maj]:'')
+      +'</div>'
+      +'</td>'
+      +'</tr>'
+      +'</table>';
+
+    // Points d'attention
+    if(inclAttn && (paTxt || chantiers.length)){
+      html += '<div style="background:#FFFBF0;border:1.5px solid #D4A800;border-left:5px solid #C09000;border-radius:5px;padding:10px 14px;margin-bottom:10px;">'
+        +'<div style="font-size:10px;font-weight:bold;color:#7A5800;text-transform:uppercase;margin-bottom:6px;">&#9888; Points d\'attention &amp; chantiers structurants</div>'
+        +(paTxt?'<div style="font-size:11px;color:#4A3A00;margin-bottom:6px;">'+paTxt+'</div>':'')
+        +(chantiers.length?'<div>'+chantiers.map(function(c){return'<span style="'+CSS.pill+'">&#128295; '+c+'</span>';}).join('')+'</div>':'')
         +'</div>';
     }
   }
 
-  // Contentieux
+  /* ════════════════════════════════
+     CONTENTIEUX
+  ════════════════════════════════ */
   if(blocs.includes('contentieux')){
-    const c=CFG.c.CT, cmc=cm.find(x=>x[CFG.c.CM.bloc]==='contentieux');
-    const tot=ct.reduce((s,r)=>s+(r[c.nb]||0),0);
-    const can=ct.reduce((s,r)=>s+(r[c.cannabis]||0),0);
-    const coc=ct.reduce((s,r)=>s+(r[c.cocaine]||0),0);
-    const tab=ct.reduce((s,r)=>s+(r[c.tabac]||0),0);
-    html+=`<div class="sec"><div class="sec-hdr">⚖️ Contentieux</div><div class="sec-body">
-      <div class="krow">
-        <div class="k ${tot>=10?'r':tot>=5?'o':'v'}"><div class="kv">${tot}</div><div class="kl">Dossiers</div></div>
-        <div class="k"><div class="kv" style="font-size:13px">${fmtD(can)} kg</div><div class="kl">Cannabis</div></div>
-        <div class="k"><div class="kv" style="font-size:13px">${fmtD(coc)} kg</div><div class="kl">Cocaïne</div></div>
-        <div class="k"><div class="kv" style="font-size:13px">${fmtD(tab)} kg</div><div class="kl">Tabac</div></div>
-      </div>
-      ${inclDR&&drs.length?drs.map(dr=>{const d=(D.contentieux||[]).find(r=>r[c.struct]==dr.id);return`<div class="dr-sec"><div class="dr-name">DR : ${dr[CFG.c.S.nom]}</div>${d?`Dossiers : ${d[c.nb]} | Cannabis : ${fmtD(d[c.cannabis])} kg | Cocaïne : ${fmtD(d[c.cocaine])} kg`:'Pas de données'}</div>`;}).join(''):''}
-      ${blocs.includes('commentaires')&&cmc?`<div class="cmt">💬 ${cmc[CFG.c.CM.txt]}</div>`:''}
-    </div></div>`;
-  }
+    var cc=CFG.c.CT;
+    var tot=ct.reduce(function(s,r){return s+n(r[cc.nb]);},0);
+    var can=ct.reduce(function(s,r){return s+n(r[cc.cannabis]);},0);
+    var coc=ct.reduce(function(s,r){return s+n(r[cc.cocaine]);},0);
+    var tab=ct.reduce(function(s,r){return s+n(r[cc.tabac]);},0);
+    var clsN=tot>=10?'r':tot>=5?'o':'v';
+    var cmc=cm.find(function(x){return x[CFG.c.CM.bloc]==='contentieux';});
 
-  // Budget
-  if(blocs.includes('budget')){
-    const c=CFG.c.B, cmb=cm.find(x=>x[CFG.c.CM.bloc]==='budget');
-    const types=['Fonctionnement','Investissement','Intervention'];
-    let rows='';
-    types.forEach(t=>{
-      const r=bu.find(x=>x[c.typeb]===t);
-      if(!r) return;
-      const aen=n(r[c.ae_n])||0,aec=n(r[c.ae_c])||0,cpn=n(r[c.cp_n])||0,cpc=n(r[c.cp_c])||0;
-      const pae=aen?Math.round(aec/aen*100):0, pcp=cpn?Math.round(cpc/cpn*100):0;
-      const ca=pae>95?'danger':pae>80?'warn':'ok', cc=pcp>95?'danger':pcp>80?'warn':'ok';
-      rows+=`<tr><td>${t}</td><td class="tr">${fmt(aen)} €</td><td class="tr">${fmt(aec)} €</td>
-        <td class="tc">${pae}%<div class="pb"><div class="pf ${ca}" style="width:${pae}%"></div></div></td>
-        <td class="tr">${fmt(cpn)} €</td><td class="tr">${fmt(cpc)} €</td>
-        <td class="tc">${pcp}%<div class="pb"><div class="pf ${cc}" style="width:${pcp}%"></div></div></td>
-      </tr>`;
-    });
-    html+=`<div class="sec"><div class="sec-hdr">💶 Budget — ${new Date().getFullYear()}</div><div class="sec-body">
-      <table><thead><tr><th>Type</th><th class="tr">AE notif.</th><th class="tr">AE conso.</th><th class="tc">Taux AE</th><th class="tr">CP notif.</th><th class="tr">CP conso.</th><th class="tc">Taux CP</th></tr></thead>
-      <tbody>${rows||'<tr><td colspan="7" style="text-align:center;color:#8A9BAA">Pas de données</td></tr>'}</tbody></table>
-      ${blocs.includes('commentaires')&&cmb?`<div class="cmt">💬 ${cmb[CFG.c.CM.txt]}</div>`:''}
-    </div></div>`;
-  }
+    html+='<div style="'+CSS.sec+'">'
+      +'<div style="'+CSS.secHdr+'">&#9878; Contentieux</div>'
+      +'<div style="'+CSS.secBody+'">'
+      +'<table style="'+CSS.kpiTbl+'"><tr>'
+      +kpiCell(tot,'Dossiers en cours',clsN)
+      +kpiCell(fmtD(can)+' kg','Cannabis','' )
+      +kpiCell(fmtD(coc)+' kg','Coc&iuml;ne','')
+      +kpiCell(fmtD(tab)+' kg','Tabac','')
+      +'</tr></table>';
 
-  // RH
-  if(blocs.includes('rh')){
-    const c=CFG.c.RH, cmr=cm.find(x=>x[CFG.c.CM.bloc]==='rh');
-    const rem=rh?rh[c.rem]||0:0, cib=rh?rh[c.cib]||0:0;
-    const p=cib?Math.round(rem/cib*100):0;
-    html+=`<div class="sec"><div class="sec-hdr">👥 Situation RH</div><div class="sec-body">
-      ${rh?`<div class="krow">
-        <div class="k"><div class="kv">${rem}</div><div class="kl">Eff. rémunérés</div></div>
-        <div class="k"><div class="kv">${cib}</div><div class="kl">Eff. cibles</div></div>
-        <div class="k ${p<90?'o':'v'}"><div class="kv">${p}%</div><div class="kl">Couverture</div></div>
-        <div class="k v"><div class="kv" style="font-size:13px">${fmt(rh[c.ms]||0)} €</div><div class="kl">Masse salariale</div></div>
-        <div class="k"><div class="kv">${fmtD(rh[c.jf]||0)}</div><div class="kl">J. form./agent</div></div>
-        <div class="k o"><div class="kv">${rh[c.abs]||0}</div><div class="kl">J. absentéisme</div></div>
-        <div class="k"><div class="kv">${fmtD(rh[c.age]||0)}</div><div class="kl">Âge moyen</div></div>
-      </div>`:'<p style="color:#8A9BAA;font-style:italic">Pas de données</p>'}
-      ${inclDR&&drs.length?drs.map(dr=>{const d=(D.rh||[]).find(r=>r[c.struct]==dr.id);return`<div class="dr-sec"><div class="dr-name">DR : ${dr[CFG.c.S.nom]}</div>${d?`Effectifs : ${d[c.rem]}/${d[c.cib]} | MS : ${fmt(d[c.ms]||0)} € | Âge : ${fmtD(d[c.age]||0)} ans`:'Pas de données'}</div>`;}).join(''):''}
-      ${blocs.includes('commentaires')&&cmr?`<div class="cmt">💬 ${cmr[CFG.c.CM.txt]}</div>`:''}
-    </div></div>`;
-  }
-
-  // Immobilier
-  if(blocs.includes('immobilier')){
-    const c=CFG.c.IM, cmi=cm.find(x=>x[CFG.c.CM.bloc]==='immobilier');
-    const pub=im.filter(s=>s[c.occ]==='Domaine public');
-    const bail=im.filter(s=>s[c.occ]==='Bail privé');
-    html+=`<div class="sec"><div class="sec-hdr">🏛️ Situation Immobilière</div><div class="sec-body">
-      ${pub.length?`<div class="sub-t">Domaine public</div><table><thead><tr><th>Site</th><th>Adresse</th><th class="tr">m²</th><th class="tr">€/m²</th></tr></thead><tbody>${pub.map(s=>`<tr><td>${s[c.site]}</td><td style="font-size:9.5px;color:#8A9BAA">${s[c.adr]}</td><td class="tr">${fmt(s[c.m2])}</td><td class="tr">${fmt(s[c.cout])}</td></tr>`).join('')}</tbody></table>`:''}
-      ${bail.length?`<div class="sub-t">Baux privés</div><table><thead><tr><th>Site</th><th>Adresse</th><th class="tr">m²</th><th class="tr">€/m²</th><th class="tr">Loyer/an</th></tr></thead><tbody>${bail.map(s=>`<tr><td>${s[c.site]}</td><td style="font-size:9.5px;color:#8A9BAA">${s[c.adr]}</td><td class="tr">${fmt(s[c.m2])}</td><td class="tr">${fmt(s[c.cout])}</td><td class="tr">${fmt(s[c.loyer]||0)} €</td></tr>`).join('')}</tbody></table>`:''}
-      ${!im.length?'<p style="color:#8A9BAA;font-style:italic">Pas de données</p>':''}
-      ${blocs.includes('commentaires')&&cmi?`<div class="cmt">💬 ${cmi[CFG.c.CM.txt]}</div>`:''}
-    </div></div>`;
-  }
-
-  // Véhicules
-  if(blocs.includes('vehicules')){
-    const c=CFG.c.VH, cmv=cm.find(x=>x[CFG.c.CM.bloc]==='vehicules');
-    const vs=vh?n(vh[c.vet_s]):0, vn=vh?n(vh[c.vet_n]):0;
-    const ps=vh?n(vh[c.vpa_s]).toFixed(2):'—', pn=vh?n(vh[c.vpa_n]).toFixed(2):'—';
-    html+=`<div class="sec"><div class="sec-hdr">🚗 Parc de véhicules</div><div class="sec-body">
-      ${vh?`<div class="krow">
-        <div class="k"><div class="kv">${vh[c.nb]||0}</div><div class="kl">Véhicules</div></div>
-        <div class="k ${vs>vn?'r':vs>vn*.8?'o':'v'}"><div class="kv">${vs}%</div><div class="kl">Vétusté structure</div></div>
-        <div class="k"><div class="kv" style="color:#4A5A6A">${vn}%</div><div class="kl">Vétusté nationale</div></div>
-        <div class="k ${parseFloat(ps)>parseFloat(pn)?'r':'v'}"><div class="kv">${ps}</div><div class="kl">Véh./agent struct.</div></div>
-        <div class="k"><div class="kv" style="color:#4A5A6A">${pn}</div><div class="kl">Véh./agent nat.</div></div>
-      </div>`:'<p style="color:#8A9BAA;font-style:italic">Pas de données</p>'}
-      ${inclDR&&drs.length?drs.map(dr=>{const d=(D.vehicules||[]).find(r=>r[c.struct]==dr.id);return`<div class="dr-sec"><div class="dr-name">DR : ${dr[CFG.c.S.nom]}</div>${d?`Véhicules : ${d[c.nb]} | Vétusté : ${d[c.vet_s]}% (nat. ${d[c.vet_n]}%) | Véh./agent : ${n(d[c.vpa_s]).toFixed(2)}`:'Pas de données'}</div>`;}).join(''):''}
-      ${blocs.includes('commentaires')&&cmv?`<div class="cmt">💬 ${cmv[CFG.c.CM.txt]}</div>`:''}
-    </div></div>`;
-  }
-
-  // Frais de mission
-  if(blocs.includes('fraisMission')){
-    const c=CFG.c.FM, cmfm=cm.find(x=>x[CFG.c.CM.bloc]==='fraisMission');
-    const types=['Formation','AutresMissions'];
-    const labels={'Formation':'Formation','AutresMissions':'Autres missions'};
-    const maxVal=Math.max(...fm.map(r=>r[c.mt]||0),1);
-    let barsHtml='';
-    types.forEach(t=>{
-      const rows=fm.filter(r=>r[c.type]===t).sort((a,b)=>a[c.annee]-b[c.annee]);
-      if(!rows.length) return;
-      barsHtml+=`<div class="sub-t">${labels[t]}</div>`;
-      rows.forEach(r=>{
-        const mt=r[c.mt]||0;
-        const bw=Math.round(mt/maxVal*100);
-        barsHtml+=`<div class="brow">
-          <div class="byear">${r[c.annee]}</div>
-          <div class="btype">${labels[t]}</div>
-          <div class="bout" style="width:${bw}%">
-            <div class="bseg bt" style="width:${r[c.tr]||0}%"></div>
-            <div class="bseg bh" style="width:${r[c.hb]||0}%"></div>
-            <div class="bseg br" style="width:${r[c.rp]||0}%"></div>
-          </div>
-          <div class="btot">${fmt(mt)} €</div>
-        </div>`;
+    if(inclDR && drs.length){
+      drs.forEach(function(dr){
+        var d=(D.contentieux||[]).find(function(r){return r[cc.struct]==dr.id;});
+        html+='<div style="'+CSS.dr+'"><strong>DR&#160;: '+dr[CFG.c.S.nom]+'</strong><br>'
+          +(d?'Dossiers&#160;: '+n(d[cc.nb])+' | Cannabis&#160;: '+fmtD(d[cc.cannabis])+' kg | Coc&iuml;ne&#160;: '+fmtD(d[cc.cocaine])+' kg':'Pas de données')
+          +'</div>';
       });
+    }
+    html+=cmtBlock(cmc)+'</div></div>';
+  }
+
+  /* ════════════════════════════════
+     BUDGET
+  ════════════════════════════════ */
+  if(blocs.includes('budget')){
+    var cb=CFG.c.B;
+    var cmb=cm.find(function(x){return x[CFG.c.CM.bloc]==='budget';});
+    var types=['Fonctionnement','Investissement','Intervention'];
+
+    html+='<div style="'+CSS.sec+'">'
+      +'<div style="'+CSS.secHdr+'">&#128182; Budget &mdash; '+new Date().getFullYear()+'</div>'
+      +'<div style="'+CSS.secBody+'">'
+      +'<table style="'+CSS.tbl+'">'
+      +'<thead><tr>'
+      +'<th style="'+CSS.th+'">Type</th>'
+      +'<th style="'+CSS.thR+'">AE notif.</th><th style="'+CSS.thR+'">AE mises&#160;&agrave;&#160;dispo</th><th style="'+CSS.thR+'">AE conso.</th><th style="'+CSS.thR+'">Taux&#160;AE</th>'
+      +'<th style="'+CSS.thR+'">CP notif.</th><th style="'+CSS.thR+'">CP mises&#160;&agrave;&#160;dispo</th><th style="'+CSS.thR+'">CP conso.</th><th style="'+CSS.thR+'">Taux&#160;CP</th>'
+      +'</tr></thead>'
+      +'<tbody>';
+
+    var hasRows=false;
+    types.forEach(function(t){
+      var r=bu.find(function(x){return strVal(x[cb.typeb])===t;});
+      if(!r) return;
+      hasRows=true;
+      var aen=n(r[cb.ae_n]),aed=n(r[cb.ae_d]),aec=n(r[cb.ae_c]);
+      var cpn=n(r[cb.cp_n]),cpd=n(r[cb.cp_d]),cpc=n(r[cb.cp_c]);
+      var pae=aed?Math.round(aec/aed*100):aen?Math.round(aec/aen*100):0;
+      var pcp=cpd?Math.round(cpc/cpd*100):cpn?Math.round(cpc/cpn*100):0;
+      html+='<tr>'
+        +'<td style="'+CSS.td+'font-weight:bold;">'+t+'</td>'
+        +'<td style="'+CSS.tdR+'">'+fmt(aen)+'&#160;&euro;</td>'
+        +'<td style="'+CSS.tdR+'">'+fmt(aed)+'&#160;&euro;</td>'
+        +'<td style="'+CSS.tdR+'">'+fmt(aec)+'&#160;&euro;</td>'
+        +'<td style="'+CSS.tdC+'">'+pae+'%'+progBar(pae)+'</td>'
+        +'<td style="'+CSS.tdR+'">'+fmt(cpn)+'&#160;&euro;</td>'
+        +'<td style="'+CSS.tdR+'">'+fmt(cpd)+'&#160;&euro;</td>'
+        +'<td style="'+CSS.tdR+'">'+fmt(cpc)+'&#160;&euro;</td>'
+        +'<td style="'+CSS.tdC+'">'+pcp+'%'+progBar(pcp)+'</td>'
+        +'</tr>';
     });
-    html+=`<div class="sec"><div class="sec-hdr">✈️ Frais de mission — 4 ans</div><div class="sec-body">
-      ${barsHtml||'<p style="color:#8A9BAA;font-style:italic">Pas de données</p>'}
-      <div style="display:flex;gap:10px;margin-top:7px;font-size:10px;color:#4A5A6A">
-        <span>■ Transport</span><span>■ Hébergement</span><span>■ Repas</span>
-      </div>
-      ${blocs.includes('commentaires')&&cmfm?`<div class="cmt">💬 ${cmfm[CFG.c.CM.txt]}</div>`:''}
-    </div></div>`;
+    if(!hasRows) html+='<tr><td colspan="9" style="'+CSS.tdC+'color:#8A9BAA;font-style:italic;">Pas de données</td></tr>';
+    html+='</tbody></table>'+cmtBlock(cmb)+'</div></div>';
+  }
+
+  /* ════════════════════════════════
+     RH
+  ════════════════════════════════ */
+  if(blocs.includes('rh')){
+    var cr=CFG.c.RH;
+    var cmr=cm.find(function(x){return x[CFG.c.CM.bloc]==='rh';});
+    var rem=rh?n(rh[cr.rem]):0, cib=rh?n(rh[cr.cib]):0;
+    var pct=cib?Math.round(rem/cib*100):0;
+
+    html+='<div style="'+CSS.sec+'">'
+      +'<div style="'+CSS.secHdr+'">&#128101; Situation RH</div>'
+      +'<div style="'+CSS.secBody+'">';
+
+    if(rh){
+      html+='<table style="'+CSS.kpiTbl+'"><tr>'
+        +kpiCell(rem,'Eff. rémunérés','')
+        +kpiCell(cib,'Eff. cibles','')
+        +kpiCell(pct+'%','Couverture',pct<90?'o':'v')
+        +kpiCell(fmt(n(rh[cr.ms]))+'&#160;&euro;','Masse salariale','v')
+        +kpiCell(fmtD(n(rh[cr.jf])),'J. form./agent','')
+        +kpiCell(n(rh[cr.abs]),'J. absentéisme','o')
+        +kpiCell(fmtD(n(rh[cr.age]))+' ans','Âge moyen','')
+        +'</tr></table>'
+        +progBar(pct);
+
+      if(inclDR && drs.length){
+        drs.forEach(function(dr){
+          var d=(D.rh||[]).find(function(r){return r[cr.struct]==dr.id;});
+          html+='<div style="'+CSS.dr+'"><strong>DR&#160;: '+dr[CFG.c.S.nom]+'</strong><br>'
+            +(d?'Effectifs&#160;: '+n(d[cr.rem])+'/'+n(d[cr.cib])+' | MS&#160;: '+fmt(n(d[cr.ms]))+'&#160;&euro; | Âge&#160;: '+fmtD(n(d[cr.age]))+' ans':'Pas de données')
+            +'</div>';
+        });
+      }
+    } else {
+      html+='<p style="color:#8A9BAA;font-style:italic;">Pas de données</p>';
+    }
+    html+=cmtBlock(cmr)+'</div></div>';
+  }
+
+  /* ════════════════════════════════
+     IMMOBILIER
+  ════════════════════════════════ */
+  if(blocs.includes('immobilier')){
+    var ci=CFG.c.IM;
+    var cmi=cm.find(function(x){return x[CFG.c.CM.bloc]==='immobilier';});
+    var pub=im.filter(function(s){return strVal(s[ci.occ])==='Domaine public';});
+    var bail=im.filter(function(s){return strVal(s[ci.occ])==='Bail privé';});
+
+    html+='<div style="'+CSS.sec+'">'
+      +'<div style="'+CSS.secHdr+'">&#127963; Situation Immobilière</div>'
+      +'<div style="'+CSS.secBody+'">';
+
+    if(!im.length){
+      html+='<p style="color:#8A9BAA;font-style:italic;">Pas de données</p>';
+    } else {
+      if(pub.length){
+        html+='<div style="'+CSS.subT+'">Domaine public</div>'
+          +'<table style="'+CSS.tbl+'">'
+          +'<thead><tr><th style="'+CSS.th+'">Site</th><th style="'+CSS.th+'">Adresse</th><th style="'+CSS.thR+'">m²</th><th style="'+CSS.thR+'">€/m²</th></tr></thead>'
+          +'<tbody>';
+        pub.forEach(function(s){
+          html+='<tr><td style="'+CSS.td+'">'+s[ci.site]+'</td><td style="'+CSS.td+'font-size:9px;color:#8A9BAA;">'+s[ci.adr]+'</td><td style="'+CSS.tdR+'">'+fmt(n(s[ci.m2]))+' m²</td><td style="'+CSS.tdR+'">'+fmt(n(s[ci.cout]))+'&#160;€</td></tr>';
+        });
+        html+='</tbody></table>';
+      }
+      if(bail.length){
+        html+='<div style="'+CSS.subT+'">Baux privés</div>'
+          +'<table style="'+CSS.tbl+'">'
+          +'<thead><tr><th style="'+CSS.th+'">Site</th><th style="'+CSS.th+'">Adresse</th><th style="'+CSS.thR+'">m²</th><th style="'+CSS.thR+'">€/m²</th><th style="'+CSS.thR+'">Loyer/an</th></tr></thead>'
+          +'<tbody>';
+        bail.forEach(function(s){
+          html+='<tr><td style="'+CSS.td+'">'+s[ci.site]+'</td><td style="'+CSS.td+'font-size:9px;color:#8A9BAA;">'+s[ci.adr]+'</td><td style="'+CSS.tdR+'">'+fmt(n(s[ci.m2]))+' m²</td><td style="'+CSS.tdR+'">'+fmt(n(s[ci.cout]))+'&#160;€</td><td style="'+CSS.tdR+'">'+fmt(n(s[ci.loyer]))+'&#160;€</td></tr>';
+        });
+        html+='</tbody></table>';
+      }
+    }
+    html+=cmtBlock(cmi)+'</div></div>';
+  }
+
+  /* ════════════════════════════════
+     VÉHICULES
+  ════════════════════════════════ */
+  if(blocs.includes('vehicules')){
+    var cv=CFG.c.VH;
+    var cmv=cm.find(function(x){return x[CFG.c.CM.bloc]==='vehicules';});
+    var vs=vh?n(vh[cv.vet_s]):0, vn=vh?n(vh[cv.vet_n]):0;
+    var ps=vh?n(vh[cv.vpa_s]).toFixed(2):'—', pn=vh?n(vh[cv.vpa_n]).toFixed(2):'—';
+    var clsVet=vs>vn?'r':vs>vn*0.8?'o':'v';
+    var clsVpa=parseFloat(ps)>parseFloat(pn)?'r':'v';
+
+    html+='<div style="'+CSS.sec+'">'
+      +'<div style="'+CSS.secHdr+'">&#128663; Parc de véhicules</div>'
+      +'<div style="'+CSS.secBody+'">';
+
+    if(vh){
+      html+='<table style="'+CSS.kpiTbl+'"><tr>'
+        +kpiCell(n(vh[cv.nb]),'Véhicules','')
+        +kpiCell(vs+'%','Vétusté structure',clsVet)
+        +kpiCell(vn+'%','Vétusté nationale','')
+        +kpiCell(ps,'Véh./agent structure',clsVpa)
+        +kpiCell(pn,'Véh./agent national','')
+        +'</tr></table>';
+
+      if(inclDR && drs.length){
+        drs.forEach(function(dr){
+          var d=(D.vehicules||[]).find(function(r){return r[cv.struct]==dr.id;});
+          html+='<div style="'+CSS.dr+'"><strong>DR&#160;: '+dr[CFG.c.S.nom]+'</strong><br>'
+            +(d?'Véhicules&#160;: '+n(d[cv.nb])+' | Vétusté&#160;: '+n(d[cv.vet_s])+'% (nat. '+n(d[cv.vet_n])+'%) | Véh./agent&#160;: '+n(d[cv.vpa_s]).toFixed(2):'Pas de données')
+            +'</div>';
+        });
+      }
+    } else {
+      html+='<p style="color:#8A9BAA;font-style:italic;">Pas de données</p>';
+    }
+    html+=cmtBlock(cmv)+'</div></div>';
+  }
+
+  /* ════════════════════════════════
+     FRAIS DE MISSION
+  ════════════════════════════════ */
+  if(blocs.includes('fraisMission')){
+    var cf=CFG.c.FM;
+    var cmfm=cm.find(function(x){return x[CFG.c.CM.bloc]==='fraisMission';});
+    var typesFM=['Formation','AutresMissions'];
+    var labelsFM={'Formation':'Formation','AutresMissions':'Autres missions'};
+    var annees=[...new Set(fm.map(function(r){return Number(r[cf.annee]);}))].filter(Boolean).sort();
+    var maxVal=Math.max.apply(null,fm.map(function(r){return n(r[cf.mt]);}));
+    if(maxVal<=0) maxVal=1;
+
+    html+='<div style="'+CSS.sec+'">'
+      +'<div style="'+CSS.secHdr+'">&#9992; Frais de mission &mdash; 4 ans</div>'
+      +'<div style="'+CSS.secBody+'">';
+
+    var hasFM=false;
+    typesFM.forEach(function(t){
+      var rows=fm.filter(function(r){return strVal(r[cf.type])===t;}).sort(function(a,b){return Number(a[cf.annee])-Number(b[cf.annee]);});
+      if(!rows.length) return;
+      hasFM=true;
+      html+='<div style="'+CSS.subT+'">'+labelsFM[t]+'</div>';
+      // Tableau : années en colonnes
+      html+='<table style="'+CSS.tbl+'"><thead><tr><th style="'+CSS.th+'">Année</th><th style="'+CSS.thR+'">Total</th><th style="'+CSS.thR+'">Transport</th><th style="'+CSS.thR+'">Hébergement</th><th style="'+CSS.thR+'">Repas</th></tr></thead><tbody>';
+      rows.forEach(function(r){
+        var mt=n(r[cf.mt]), tr=n(r[cf.tr]), hb=n(r[cf.hb]), rp=n(r[cf.rp]);
+        html+='<tr>'
+          +'<td style="'+CSS.td+'font-weight:bold;">'+Number(r[cf.annee])+'</td>'
+          +'<td style="'+CSS.tdR+'font-weight:bold;">'+fmt(mt)+'&#160;&euro;</td>'
+          +'<td style="'+CSS.tdR+'">'+tr+'%</td>'
+          +'<td style="'+CSS.tdR+'">'+hb+'%</td>'
+          +'<td style="'+CSS.tdR+'">'+rp+'%</td>'
+          +'</tr>';
+      });
+      html+='</tbody></table>';
+    });
+    if(!hasFM) html+='<p style="color:#8A9BAA;font-style:italic;">Pas de données</p>';
+    html+=cmtBlock(cmfm)+'</div></div>';
   }
 
   return html;
@@ -1553,8 +1743,12 @@ function buildPdfHTML(s, blocs, inclAttn, inclDR){
 ═══════════════════════════════════════════════════════ */
 function exportHTML(){
   if(!current){alert('Veuillez sélectionner une structure.');return;}
-  const ficheHTML=document.getElementById('fiche-body').innerHTML;
-  const styles=[...document.styleSheets].map(ss=>{try{return[...ss.cssRules].map(r=>r.cssText).join('\n');}catch(e){return'';}}).join('\n');
+  // Cloner et nettoyer les éléments interactifs (crayons, zones d'édition)
+  const clone=document.getElementById('fiche-body').cloneNode(true);
+  clone.querySelectorAll('.edit-btn,.attn-edit-btn,.edit-zone,.attn-edit-zone').forEach(el=>el.remove());
+  clone.querySelectorAll('textarea,.btn-save,.btn-cancel-edit,.save-msg').forEach(el=>el.remove());
+  const ficheHTML=clone.innerHTML;
+  const styles=[...document.styleSheets].map(ss=>{try{return[...ss.cssRules].map(r=>r.cssText).join('\n');}catch(e){return '';}}).join('\n');
   const doc=`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Fiche — ${current[CFG.c.S.nom]}</title>
 <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Cabin:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>${styles}</style></head>
@@ -1568,13 +1762,10 @@ ${ficheHTML}
   const blob=new Blob([doc],{type:'text/html;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
-  a.href=url;a.download=`fiche-${current[CFG.c.S.nom].replace(/[^a-z0-9]/gi,'_')}.html`;
-  a.click();URL.revokeObjectURL(url);
+  a.href=url;a.download=(current[CFG.c.S.sigle]||current[CFG.c.S.nom]).replace(/[^a-zA-Z0-9-_]/g,'_')+'-fiche.html';
+  document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(url);document.body.removeChild(a);},2000);
 }
-
-/* ═══════════════════════════════════════════════════════
-   RENDU FICHE (identique à v2, inchangé)
-═══════════════════════════════════════════════════════ */
 function renderFiche(s){
   const id=s.id;
   _curId=id;  // utilisé par renderCmt pour la sauvegarde
@@ -1694,9 +1885,39 @@ function renderFraisMission(data,cms){
   const types=['Formation','AutresMissions'], labels={'Formation':'Formation','AutresMissions':'Autres missions'};
   const maxAll=Math.max(...data.map(r=>n(r[c.mt])),1);
   const renderType=(type)=>{
-    const rows=data.filter(r=>strVal(r[c.type])===type).sort((a,b)=>a[c.annee]-b[c.annee]);
+    const rows=data.filter(r=>strVal(r[c.type])===type).sort((a,b)=>Number(a[c.annee])-Number(b[c.annee]));
     if(!rows.length) return '';
-    return`<div class="sub-title">${labels[type]}</div><div class="bar-chart">${rows.map(r=>{const mt=n(r[c.mt]),tr=n(r[c.tr]),hb=n(r[c.hb]),rp=n(r[c.rp]),bw=Math.round(mt/maxAll*100);return`<div class="bar-row"><div class="bar-year">${r[c.annee]}</div><div class="bar-outer" style="width:${bw}%"><div class="bar-seg bs-transport" style="width:${tr}%"></div><div class="bar-seg bs-heberg" style="width:${hb}%"></div><div class="bar-seg bs-repas" style="width:${rp}%"></div></div><div class="bar-total">${fmt(mt)} €</div></div>`;}).join('')}</div>`;
+    // Tableau avec montants détaillés Transport / Hébergement / Repas
+    const tableRows=rows.map(r=>{
+      const mt=n(r[c.mt]),tr=n(r[c.tr]),hb=n(r[c.hb]),rp=n(r[c.rp]);
+      // tr/hb/rp sont des % du total dans la table
+      const mtTr=mt?Math.round(mt*tr/100):0;
+      const mtHb=mt?Math.round(mt*hb/100):0;
+      const mtRp=mt?Math.round(mt*rp/100):0;
+      const bw=Math.round(mt/maxAll*100);
+      return`<tr>
+        <td class="bar-year" style="padding:3px 6px;font-size:11px;font-weight:700;color:var(--gris2);white-space:nowrap;">${r[c.annee]}</td>
+        <td style="padding:3px 6px;width:30%">
+          <div class="bar-outer" style="width:${bw}%"><div class="bar-seg bs-transport" style="width:${tr}%"></div><div class="bar-seg bs-heberg" style="width:${hb}%"></div><div class="bar-seg bs-repas" style="width:${rp}%"></div></div>
+        </td>
+        <td class="bar-total" style="padding:3px 8px;text-align:right;font-weight:700;white-space:nowrap;">${fmt(mt)} €</td>
+        <td style="padding:3px 6px;text-align:right;font-size:10.5px;color:#1351A8;white-space:nowrap;">${fmt(mtTr)} €</td>
+        <td style="padding:3px 6px;text-align:right;font-size:10.5px;color:#C05A00;white-space:nowrap;">${fmt(mtHb)} €</td>
+        <td style="padding:3px 6px;text-align:right;font-size:10.5px;color:#1A6B3C;white-space:nowrap;">${fmt(mtRp)} €</td>
+      </tr>`;
+    }).join('');
+    return`<div class="sub-title">${labels[type]}</div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:8px;">
+      <thead><tr>
+        <th style="padding:3px 6px;font-size:9.5px;color:var(--gris3);font-weight:700;text-align:left;border-bottom:1px solid var(--bord);">Année</th>
+        <th style="padding:3px 6px;font-size:9.5px;color:var(--gris3);font-weight:700;border-bottom:1px solid var(--bord);">Répartition</th>
+        <th style="padding:3px 8px;font-size:9.5px;color:var(--gris3);font-weight:700;text-align:right;border-bottom:1px solid var(--bord);">Total</th>
+        <th style="padding:3px 6px;font-size:9.5px;color:#1351A8;font-weight:700;text-align:right;border-bottom:1px solid var(--bord);">Transport</th>
+        <th style="padding:3px 6px;font-size:9.5px;color:#C05A00;font-weight:700;text-align:right;border-bottom:1px solid var(--bord);">Hébergement</th>
+        <th style="padding:3px 6px;font-size:9.5px;color:#1A6B3C;font-weight:700;text-align:right;border-bottom:1px solid var(--bord);">Repas</th>
+      </tr></thead>
+      <tbody>${tableRows}</tbody>
+    </table>`;
   };
   return`<div class="section full"><div class="sec-hdr"><span class="ico">✈️</span><h3>Frais de mission — 4 ans</h3></div><div class="sec-body">${types.map(t=>renderType(t)).join('')}<div class="legend"><div class="leg-item"><div class="leg-dot" style="background:#1351A8"></div>Transport</div><div class="leg-item"><div class="leg-dot" style="background:#C05A00"></div>Hébergement</div><div class="leg-item"><div class="leg-dot" style="background:#1A6B3C"></div>Repas</div></div>${renderCmt(cm,'fraisMission',_curId)}</div></div>`;
 }
