@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Diag v2</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: monospace; font-size: 12px; background: #0d1117; color: #c9d1d9; padding: 12px; }
+.row { display:flex; gap:8px; align-items:baseline; padding: 4px 0; border-bottom: 1px solid #21262d; }
+.ts  { color: #8b949e; flex-shrink:0; width: 70px; }
+.ok  { color: #3fb950; }
+.err { color: #f85149; }
+.warn{ color: #d29922; }
+.val { color: #79c0ff; word-break: break-all; flex:1; }
+.sep { background: #21262d; height: 1px; margin: 8px 0; }
+h3   { color: #f0f6fc; font-size: 13px; margin: 10px 0 6px; }
+button { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; margin: 3px; }
+button:hover { background: #30363d; }
+pre  { color: #a5d6ff; font-size: 11px; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto; background: #161b22; padding: 8px; border-radius: 4px; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<h3>Diagnostic Grist v2</h3>
+<div id="out"></div>
+<div class="sep"></div>
+<div>
+  <button onclick="tryFetch('Structures')">fetch Structures</button>
+  <button onclick="tryFetch('Budget')">fetch Budget</button>
+  <button onclick="tryFetch('RH')">fetch RH</button>
+  <button onclick="tryFetch('Commentaires')">fetch Commentaires</button>
+  <button onclick="tryFetch('Vehicules')">fetch Vehicules</button>
+  <button onclick="tryRest()">API REST</button>
+  <button onclick="dumpGrist()">dump grist{}</button>
+</div>
+<div id="results" style="margin-top:8px"></div>
+
+<script>
+var L = document.getElementById('out');
+var R = document.getElementById('results');
+
+function log(msg, cls) {
+  var d = document.createElement('div');
+  d.className = 'row';
+  var ts = document.createElement('span');
+  ts.className = 'ts';
+  ts.textContent = new Date().toLocaleTimeString('fr');
+  var txt = document.createElement('span');
+  txt.className = cls || 'val';
+  txt.textContent = msg;
+  d.appendChild(ts);
+  d.appendChild(txt);
+  L.appendChild(d);
+  L.scrollTop = L.scrollHeight;
+}
+
+function result(title, content, cls) {
+  var h = document.createElement('h3');
+  h.textContent = title;
+  R.appendChild(h);
+  var p = document.createElement('pre');
+  p.className = cls || '';
+  p.textContent = content;
+  R.appendChild(p);
+}
+
+// ── Démarrage ──
+log('URL: ' + window.location.href, 'val');
+log('Referrer: ' + (document.referrer || '(vide)'), 'val');
+log('access param: ' + (new URLSearchParams(window.location.search).get('access') || '(absent)'), 'warn');
+
+if (typeof grist === 'undefined') {
+  log('grist === undefined → SDK non injecté', 'err');
+  log('Cause probable: access=none dans les paramètres du widget', 'warn');
+} else {
+  log('grist disponible ✓', 'ok');
+  log('méthodes: ' + Object.keys(grist).filter(function(k){ return typeof grist[k]==='function'; }).join(', '), 'val');
+
+  // Appel ready
+  try {
+    grist.ready({ requiredAccess: 'full' });
+    log('grist.ready(full) ✓', 'ok');
+  } catch(e) {
+    log('grist.ready() erreur: ' + e.message, 'err');
+  }
+
+  // onRecords
+  if (typeof grist.onRecords === 'function') {
+    log('grist.onRecords: enregistrement...', 'warn');
+    grist.onRecords(function(records, mappings) {
+      log('onRecords déclenché! ' + (records ? records.length : 'null') + ' records', 'ok');
+      if (records && records.length > 0) {
+        var r = records[0];
+        log('colonnes: ' + Object.keys(r).join(', '), 'ok');
+        log('1er record: ' + JSON.stringify(r).substring(0, 200), 'val');
+      } else {
+        log('records vide ou null', 'warn');
+        log('Vérifiez que la table source du widget est bien "Structures"', 'warn');
+      }
+      // Après onRecords, tester docApi
+      if (typeof grist.docApi !== 'undefined') {
+        log('grist.docApi disponible après onRecords ✓', 'ok');
+      } else {
+        log('grist.docApi toujours absent après onRecords', 'err');
+      }
+    });
+  } else {
+    log('grist.onRecords: ABSENT', 'err');
+  }
+
+  // onRecord
+  if (typeof grist.onRecord === 'function') {
+    log('grist.onRecord: enregistrement...', 'warn');
+    grist.onRecord(function(r) {
+      log('onRecord déclenché! id=' + (r && r.id), 'ok');
+      if (r) log('colonnes onRecord: ' + Object.keys(r).join(', '), 'val');
+    });
+  } else {
+    log('grist.onRecord: ABSENT', 'warn');
+  }
+
+  // onOptions
+  if (typeof grist.onOptions === 'function') {
+    grist.onOptions(function(opts) {
+      log('onOptions déclenché: ' + JSON.stringify(opts), 'ok');
+    });
+  }
+
+  // Polling docApi
+  var pollN = 0;
+  var pollT = setInterval(function() {
+    pollN++;
+    if (pollN > 20) { clearInterval(pollT); log('Polling terminé (10s) — docApi jamais apparu', 'err'); return; }
+    if (typeof grist.docApi !== 'undefined') {
+      clearInterval(pollT);
+      log('docApi apparu après ' + (pollN*500) + 'ms ✓', 'ok');
+    }
+  }, 500);
+}
+
+// ── Fetch manuel ──
+async function tryFetch(t) {
+  R.innerHTML = '';
+  log('=== tryFetch("' + t + '") ===', 'warn');
+
+  if (typeof grist === 'undefined') { result(t, 'grist undefined', 'err'); return; }
+
+  // Méthode 1: docApi
+  if (typeof grist.docApi !== 'undefined' && typeof grist.docApi.fetchTable === 'function') {
+    try {
+      log('docApi.fetchTable("' + t + '")...', 'val');
+      var raw = await grist.docApi.fetchTable(t);
+      var cols = Object.keys(raw);
+      var nb = raw.id ? raw.id.length : 0;
+      log('docApi OK: ' + nb + ' lignes, cols: ' + cols.join(', '), 'ok');
+      var obj = {};
+      cols.forEach(function(c) { obj[c] = raw[c] && raw[c][0]; });
+      result('docApi — ' + t + ' (' + nb + ' lignes)', JSON.stringify(obj, null, 2), 'ok');
+      return;
+    } catch(e) {
+      log('docApi erreur: ' + (e.message || e), 'err');
+    }
+  } else {
+    log('docApi non disponible', 'warn');
+  }
+
+  // Méthode 2: API REST
+  var docId = getDocId();
+  if (!docId) { log('docId non trouvé', 'err'); return; }
+  var url = window.location.origin + '/api/docs/' + docId + '/tables/' + t + '/records';
+  log('REST GET ' + url, 'val');
+  try {
+    var resp = await fetch(url, { credentials: 'include' });
+    log('REST HTTP ' + resp.status, resp.ok ? 'ok' : 'err');
+    if (resp.ok) {
+      var json = await resp.json();
+      var nb2 = json.records ? json.records.length : 0;
+      log('REST OK: ' + nb2 + ' lignes', 'ok');
+      result('REST — ' + t + ' (' + nb2 + ' lignes)', JSON.stringify(json.records && json.records[0], null, 2), 'ok');
+    } else {
+      var txt = await resp.text();
+      result('REST erreur ' + resp.status, txt.substring(0, 500), 'err');
+    }
+  } catch(e) {
+    log('REST erreur: ' + (e.message || e), 'err');
+  }
+}
+
+async function tryRest() {
+  await tryFetch('Structures');
+}
+
+function dumpGrist() {
+  if (typeof grist === 'undefined') { result('grist', 'undefined', 'err'); return; }
+  var dump = {};
+  Object.getOwnPropertyNames(grist).forEach(function(k) {
+    try { dump[k] = typeof grist[k] === 'function' ? '[function]' : JSON.stringify(grist[k]); }
+    catch(e) { dump[k] = '[error]'; }
+  });
+  result('grist{}', JSON.stringify(dump, null, 2));
+}
+
+function getDocId() {
+  if (typeof grist !== 'undefined' && grist.docId) return grist.docId;
+  // Chercher dans le referrer
+  var m = document.referrer.match(/\/([a-zA-Z0-9]{15,30})\b/g);
+  if (m) {
+    for (var i=0; i<m.length; i++) {
+      var id = m[i].replace('/','');
+      if (id.length >= 15) return id;
+    }
+  }
+  // ID connu de votre doc
+  return '7gGFmWHE9Uzozqpsvw5ufA';
+}
+</script>
+</body>
+</html>
