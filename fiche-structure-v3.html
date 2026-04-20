@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Fiche de structure — Indicateurs de gestion</title>
-<!-- jsPDF + html2canvas pour export PDF natif -->
+<!-- jsPDF + html2canvas pour export PDF natif --><!-- v3.1 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
@@ -619,6 +619,11 @@ body{font-family:'Cabin',sans-serif;background:#F2F5FA;color:var(--gris1);line-h
 </div>
 
 <script>
+/* ── Fonctions utilitaires globales — définies en premier ── */
+function n(v){ var x=parseFloat(v); return isNaN(x)?0:x; }
+function fmt(v){ return v!=null?Number(v).toLocaleString('fr-FR'):'—'; }
+function fmtD(v){ return v!=null?Number(v).toLocaleString('fr-FR',{maximumFractionDigits:1}):'—'; }
+
 /* ═══════════════════════════════════════════════════════
    CONFIG
 ═══════════════════════════════════════════════════════ */
@@ -1640,11 +1645,7 @@ function toggleDR(uid){const el=document.getElementById(uid);const tog=el.previo
 function renderCmt(cm){const txt=cm?cm[CFG.c.CM.txt]:'';return`<div class="comment-zone"><div class="comment-label">💬 Commentaire</div><div class="comment-text">${txt||'<span class="comment-empty">Aucun commentaire.</span>'}</div></div>`;}
 function secEmpty(ico,titre,cm,cls=''){return`<div class="section ${cls}"><div class="sec-hdr"><span class="ico">${ico}</span><h3>${titre}</h3></div><div class="sec-body"><div class="no-data">Aucune donnée.</div>${renderCmt(cm)}</div></div>`;}
 
-/* utilitaires */
-/* Convertit en nombre — gère les chaînes que Grist renvoie parfois */
-function n(v){ var x=parseFloat(v); return isNaN(x)?0:x; }
-function fmt(v){return v!=null?Number(v).toLocaleString('fr-FR'):'—';}
-function fmtD(v){return v!=null?Number(v).toLocaleString('fr-FR',{maximumFractionDigits:1}):'—';}
+/* utilitaires — voir définitions en tête de script */
 
 
 /* ═══════════════════════════════════════════════════════
