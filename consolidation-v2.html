@@ -174,7 +174,7 @@ body{font-family:'Cabin',sans-serif;background:#F2F5FA;color:var(--gris1);font-s
 </style>
 <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
 
@@ -513,7 +513,8 @@ function tabBudget(){
     if(!sb.length) return `<tr class="r-${s.Type}"><td><span class="badge b-${s.Type}">${s.Type}</span> ${s[CFG.c.S.nom]}</td><td colspan="9" class="tc" style="color:var(--gris3)">—</td></tr>`;
     return types.map((t,ti)=>{
       const r=sb.find(x=>strVal(x[c.typeb])===t);
-      if(!r) return `<tr class="r-${s.Type}">${ti===0?`<td rowspan="3"><span class="badge b-${s.Type}">${s.Type}</span> ${s[CFG.c.S.nom]}</td>`:''}
+      if(!r) return `<tr class="r-${s.Type}">
+        <td style="font-weight:600">${ti===0?`<span class="badge b-${s.Type}">${s.Type}</span> ${s[CFG.c.S.nom]}`:'↳'}</td>
         <td style="color:var(--gris3);font-size:11px">${t}</td><td colspan="8" class="tc" style="color:var(--gris3)">—</td></tr>`;
       const aen=n(r[c.ae_n]),aed=n(r[c.ae_d]),aec=n(r[c.ae_c]);
       const cpn=n(r[c.cp_n]),cpd=n(r[c.cp_d]),cpc=n(r[c.cp_c]);
@@ -522,7 +523,7 @@ function tabBudget(){
       const ca=pae>95?'mf-danger':pae>80?'mf-warn':'mf-ok';
       const cc=pcp>95?'mf-danger':pcp>80?'mf-warn':'mf-ok';
       return `<tr class="r-${s.Type}">
-        ${ti===0?`<td rowspan="3" style="font-weight:600"><span class="badge b-${s.Type}">${s.Type}</span> ${s[CFG.c.S.nom]}</td>`:''}
+        <td style="font-weight:600">${ti===0?`<span class="badge b-${s.Type}">${s.Type}</span> ${s[CFG.c.S.nom]}`:'↳'}</td>
         <td style="font-size:10.5px;color:var(--gris2);font-weight:600">${strVal(t)||t}</td>
         <td class="tr">${fmt(aen)}</td><td class="tr">${fmt(aed)}</td><td class="tr">${fmt(aec)}</td>
         <td class="tc"><div>${pae}%</div><div class="mbar"><div class="mfill ${ca}" style="width:${pae}%"></div></div></td>
@@ -659,7 +660,7 @@ function tabImmobilier(){
     const sites=im.filter(x=>x[c.struct]==s.id);
     if(!sites.length) return `<tr class="r-${s.Type}"><td><span class="badge b-${s.Type}">${s.Type}</span> ${s[CFG.c.S.nom]}</td><td colspan="5" class="tc" style="color:var(--gris3)">—</td></tr>`;
     return sites.map((si,i)=>`<tr class="r-${s.Type}">
-      ${i===0?`<td rowspan="${sites.length}" style="font-weight:600"><span class="badge b-${s.Type}">${s.Type}</span> ${s[CFG.c.S.nom]}</td>`:''}
+      <td style="font-weight:600">${i===0?`<span class="badge b-${s.Type}">${s.Type}</span> ${s[CFG.c.S.nom]}`:'↳'}</td>
       <td>${si[c.site]}</td>
       <td><span class="${strVal(si[c.occ])==='Bail privé'?'occ-bail':'occ-pub'}">${strVal(si[c.occ])}</span></td>
       <td style="font-size:10.5px;color:var(--gris2)">${si[c.adr]}</td>
@@ -743,15 +744,20 @@ function tabMissions(){
   const totA=fm.filter(r=>strVal(r[c.type])==='AutresMissions').reduce((s,r)=>s+n(r[c.mt]),0);
 
   // Tableau : une ligne par structure×type, colonnes = années
+  // Pas de rowspan pour éviter les décalages au saut de page PDF
   const rows=structs.map(s=>{
     return types.map((t,ti)=>{
       const rowsT=annees.map(a=>{
         const r=fm.find(x=>x[c.struct]==s.id&&strVal(x[c.type])===t&&Number(x[c.annee])===a);
-        return `<td class="tr">${r?fmt(r[c.mt]||0)+' €':'—'}</td>`;
+        return `<td class="tr">${r?fmt(n(r[c.mt]))+' €':'—'}</td>`;
       }).join('');
+      // Afficher la cellule structure sur chaque ligne (pas de rowspan)
+      const structCell = ti===0
+        ? `<td style="font-weight:600;border-bottom:none"><span class="badge b-${s.Type}">${s.Type}</span> ${s[CFG.c.S.nom]}</td>`
+        : `<td style="color:var(--gris3);font-size:10px;border-top:none">↳</td>`;
       return `<tr class="r-${s.Type}">
-        ${ti===0?`<td rowspan="2" style="font-weight:600"><span class="badge b-${s.Type}">${s.Type}</span> ${s[CFG.c.S.nom]}</td>`:''}
-        <td style="font-size:10.5px;color:var(--gris2);font-weight:600">${tlabels[t]}</td>
+        ${structCell}
+        <td style="font-size:10.5px;color:var(--gris2);font-weight:600;padding-left:${ti===0?'':'14px'}">${tlabels[t]}</td>
         ${rowsT}
       </tr>`;
     }).join('');
@@ -848,148 +854,287 @@ async function doExportPDF(){
 
 async function genConsoPDF(tabs, inclKpi, inclTableau, paysage, inclDate){
   const { jsPDF } = window.jspdf;
-  const orient = paysage ? 'landscape' : 'portrait';
-  const pdf = new jsPDF({ orientation: orient, unit:'mm', format:'a4' });
-  const pageW = paysage ? 297 : 210;
-  const pageH = paysage ? 210 : 297;
-  const margin = 12;
+  const orient  = paysage ? 'landscape' : 'portrait';
+  const pageW   = paysage ? 297 : 210;
+  const pageH   = paysage ? 210 : 297;
+  const margin  = 12;
   const contentW = pageW - 2*margin;
 
-  // Fonctions de rendu des onglets
+  const pdf = new jsPDF({ orientation: orient, unit:'mm', format:'a4' });
+
+  // ── DATE DE RÉFÉRENCE ──
+  const dateRef = (function(){
+    // Chercher la date la plus récente dans les données Grist
+    const moisFR = ['janvier','février','mars','avril','mai','juin',
+                    'juillet','août','septembre','octobre','novembre','décembre'];
+    const now = new Date();
+    return `${now.getDate()} ${moisFR[now.getMonth()]} ${now.getFullYear()}`;
+  })();
+
+  // ── PAGE DE GARDE ──
+  setConsoProgress(5, 'Génération de la page de garde…');
+  await addCoverPage(pdf, pageW, pageH, margin, dateRef, orient);
+
+  // ── ONGLETS ──
   const tabFns = { budget:tabBudget, rh:tabRH, contentieux:tabContentieux,
                    immobilier:tabImmobilier, vehicules:tabVehicules, fraisMission:tabMissions };
 
-  let firstPage = true;
-
   for(let ti=0; ti<tabs.length; ti++){
-    const tabId = tabs[ti];
+    const tabId  = tabs[ti];
     const tabDef = TABS_DEF.find(t=>t.id===tabId);
-    setConsoProgress(
-      Math.round(ti/tabs.length*85),
-      `Onglet ${ti+1}/${tabs.length} : ${tabDef?.label||tabId}…`
-    );
+    setConsoProgress(10 + Math.round(ti/tabs.length*80), `Onglet ${ti+1}/${tabs.length} : ${tabDef?.label||tabId}…`);
 
-    // Générer le HTML de l'onglet
-    let html = tabFns[tabId] ? tabFns[tabId]() : '';
-    if(!html) continue;
+    pdf.addPage(orient==='landscape'?'a4':'a4', orient);
 
-    // Filtrer selon les options
-    if(!inclKpi)     html = html.replace(/<div class="kpi-global">[\s\S]*?<\/div>\s*<div class="twrap">/, '<div class="twrap">');
-    if(!inclTableau) html = html.replace(/<div class="twrap">[\s\S]*?<\/div>\s*$/, '');
+    // En-tête d'onglet
+    const yStart = addTabHeader(pdf, tabDef, pageW, margin, dateRef);
 
-    // Créer le conteneur de rendu hors-écran
-    const container = document.createElement('div');
-    container.style.cssText = [
-      'position:fixed', 'left:-9999px', 'top:0',
-      `width:${paysage ? 1060 : 794}px`,
-      'background:#fff', 'font-family:Cabin,sans-serif', 'font-size:12px',
-      'color:#1E2D3D', 'padding:10px'
-    ].join(';');
+    // KPI globaux (rendu texte via jsPDF direct)
+    let yCursor = yStart;
+    const tabHtml = tabFns[tabId] ? tabFns[tabId]() : '';
+    if(!tabHtml) continue;
 
-    // Injecter styles inline
-    const styleEl = document.createElement('style');
-    styleEl.textContent = getInlineStyles();
-    container.appendChild(styleEl);
+    if(inclKpi){
+      yCursor = await addKpiSection(pdf, tabId, yCursor, pageW, pageH, margin, orient, inclDate);
+    }
 
-    // Titre de l'onglet
-    const titleDiv = document.createElement('div');
-    titleDiv.style.cssText = 'background:#002F6C;color:#fff;padding:10px 14px;border-radius:6px;margin-bottom:12px;font-weight:700;font-size:14px;';
-    titleDiv.textContent = (tabDef?.ico||'') + ' ' + (tabDef?.label||tabId) + ' — Consolidation';
-    container.appendChild(titleDiv);
+    if(inclTableau){
+      yCursor = await addTableSection(pdf, tabId, tabHtml, yCursor, pageW, pageH, margin, orient, inclDate, tabDef);
+    }
 
-    const bodyDiv = document.createElement('div');
-    bodyDiv.innerHTML = html;
-    container.appendChild(bodyDiv);
-    document.body.appendChild(container);
+    // Pied de page sur chaque page de cet onglet
+    if(inclDate) addFooter(pdf, tabDef, dateRef, pageW, pageH, margin);
+  }
 
-    await new Promise(r=>setTimeout(r, 150));
-
-    const canvas = await html2canvas(container, {
-      scale: 1.8,
-      useCORS: true,
-      logging: false,
-      backgroundColor: '#ffffff',
-      windowWidth: paysage ? 1060 : 794,
-    });
-    document.body.removeChild(container);
-
-    // Découper en pages
-    const imgRatio = canvas.width / canvas.height;
-    const canvasH  = contentW / imgRatio;
-    const usableH  = pageH - 2*margin - (inclDate ? 7 : 0);
-    let yOff = 0;
-    let pageInTab = 0;
-
-    while(yOff < canvasH){
-      if(!firstPage || pageInTab > 0) pdf.addPage(paysage?'a4':'a4', orient);
-      firstPage = false;
-      pageInTab++;
-
-      const sliceH = Math.min(usableH, canvasH - yOff);
-      const slicePct = sliceH / canvasH;
-      const sliceStartPct = yOff / canvasH;
-
-      const sliceCanvas = document.createElement('canvas');
-      sliceCanvas.width  = canvas.width;
-      sliceCanvas.height = Math.round(canvas.height * slicePct);
-      const ctx = sliceCanvas.getContext('2d');
-      ctx.drawImage(canvas,
-        0, Math.round(canvas.height * sliceStartPct),
-        canvas.width, sliceCanvas.height,
-        0, 0, canvas.width, sliceCanvas.height
-      );
-
-      pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 0.9), 'JPEG', margin, margin, contentW, sliceH);
-
-      if(inclDate){
-        pdf.setFontSize(7); pdf.setTextColor(150);
-        const dateStr = `${tabDef?.label||tabId} — Export du ${new Date().toLocaleDateString('fr-FR')} — p.${pdf.internal.getNumberOfPages()}`;
-        pdf.text(dateStr, margin, pageH - 5);
-        pdf.setTextColor(0);
-      }
-      yOff += sliceH;
+  // Numéroter toutes les pages
+  const totalPages = pdf.internal.getNumberOfPages();
+  for(let p=2; p<=totalPages; p++){
+    pdf.setPage(p);
+    if(inclDate){
+      // Déjà géré par addFooter — mise à jour avec total
+      pdf.setFontSize(7); pdf.setTextColor(120);
+      const txt = `Tableau de bord de la DGDDI — Données au ${dateRef} — Page ${p-1}/${totalPages-1}`;
+      pdf.text(txt, margin, pageH-4);
+      pdf.setTextColor(0);
     }
   }
 
   setConsoProgress(100, 'Finalisation…');
-  await new Promise(r=>setTimeout(r, 300));
-  pdf.save(`consolidation-${new Date().toISOString().slice(0,10)}.pdf`);
+  await new Promise(r=>setTimeout(r,200));
+  pdf.save(`consolidation-DGDDI-${new Date().toISOString().slice(0,10)}.pdf`);
 }
 
-/* Styles inline minimaux pour le rendu PDF */
-function getInlineStyles(){
-  return `
-    *{margin:0;padding:0;box-sizing:border-box;}
-    body{font-family:Arial,sans-serif;font-size:11px;color:#1E2D3D;}
-    .kpi-global{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px;}
-    .kg-card{background:#fff;border:1px solid #CDD6E4;border-radius:6px;padding:12px;border-top:3px solid #1351A8;text-align:center;}
-    .kg-card.rouge{border-top-color:#B52020;}.kg-card.vert{border-top-color:#1A6B3C;}.kg-card.orange{border-top-color:#C05A00;}
-    .kg-val{font-size:20px;font-weight:700;color:#002F6C;line-height:1;margin-bottom:3px;}
-    .kg-val.rouge{color:#B52020;}.kg-val.vert{color:#1A6B3C;}.kg-val.orange{color:#C05A00;}
-    .kg-lbl{font-size:9.5px;color:#4A5A6A;}
-    .twrap{background:#fff;border:1px solid #CDD6E4;border-radius:6px;overflow:hidden;margin-bottom:12px;}
-    .twrap-title{background:#002F6C;color:#fff;padding:8px 12px;font-size:12px;font-weight:700;}
-    .tscroll{overflow-x:auto;}
-    table{width:100%;border-collapse:collapse;font-size:10px;}
-    th{background:#E6ECF8;color:#002F6C;padding:5px 8px;text-align:left;font-weight:700;font-size:9.5px;border-bottom:2px solid #CDD6E4;white-space:nowrap;}
-    td{padding:5px 8px;border-bottom:1px solid #CDD6E4;white-space:nowrap;vertical-align:middle;}
-    tr.r-SIEGE{background:#F5F0FF;}tr.r-DI{background:#EEF5FF;}
-    tr.r-DR{background:#F8FBFF;}tr.r-DR td:first-child{padding-left:20px;}
-    tr.r-SCN{background:#F0FFF5;}
-    tfoot tr td{background:#E6ECF8!important;font-weight:700;}
-    .tr{text-align:right;}.tc{text-align:center;}
-    .badge{padding:1px 6px;border-radius:8px;font-size:9px;font-weight:700;}
-    .b-SIEGE{background:#3D1F7A;color:#fff;}.b-DI{background:#002F6C;color:#fff;}
-    .b-DR{background:#1351A8;color:#fff;}.b-SCN{background:#1A6B3C;color:#fff;}
-    .mbar{height:5px;background:#EEF2F7;border-radius:2px;overflow:hidden;margin-top:2px;min-width:40px;}
-    .mfill{height:100%;border-radius:2px;}
-    .mf-ok{background:#1A6B3C;}.mf-warn{background:#C05A00;}.mf-danger{background:#B52020;}
-    .vs{display:inline-block;font-size:9px;font-weight:700;padding:1px 4px;border-radius:6px;}
-    .vs-ok{background:#D4EDDA;color:#1A6B3C;}.vs-bad{background:#FADDDD;color:#B52020;}
-    .occ-pub{background:#E6ECF8;color:#002F6C;padding:1px 5px;border-radius:8px;font-size:9px;font-weight:700;}
-    .occ-bail{background:#FFF0E0;color:#C05A00;padding:1px 5px;border-radius:8px;font-size:9px;font-weight:700;}
-  `;
+/* ── PAGE DE GARDE ── */
+async function addCoverPage(pdf, pageW, pageH, margin, dateRef, orient){
+  // Fond bleu
+  pdf.setFillColor(0, 47, 108);
+  pdf.rect(0, 0, pageW, pageH, 'F');
+
+  // Liseré doré en bas
+  pdf.setFillColor(200, 160, 0);
+  pdf.rect(0, pageH-8, pageW, 8, 'F');
+
+  // Logo — chargé comme image
+  try {
+    const logoData = await loadImageAsBase64('https://upload.wikimedia.org/wikipedia/commons/thumb/1/1d/Logo_des_Douanes_Fran%C3%A7aises.svg/250px-Logo_des_Douanes_Fran%C3%A7aises.svg.png');
+    // Logo 180×221 px → proportion 0.814 → afficher en 35mm haut
+    const logoH = 43; const logoW = Math.round(logoH * 180/221);
+    pdf.addImage(logoData, 'PNG', (pageW-logoW)/2, pageH*0.12, logoW, logoH);
+  } catch(e) {
+    // Fallback texte si image inaccessible
+    pdf.setFontSize(11); pdf.setTextColor(200,200,200);
+    pdf.text('DOUANES FRANÇAISES', pageW/2, pageH*0.22, {align:'center'});
+  }
+
+  // Titre principal
+  pdf.setFontSize(22); pdf.setTextColor(255,255,255);
+  pdf.setFont('helvetica','bold');
+  pdf.text('Tableau de bord', pageW/2, pageH*0.52, {align:'center'});
+  pdf.text('de la DGDDI', pageW/2, pageH*0.52+10, {align:'center'});
+
+  // Ligne de séparation
+  pdf.setDrawColor(200,160,0); pdf.setLineWidth(0.8);
+  pdf.line(margin*3, pageH*0.62, pageW-margin*3, pageH*0.62);
+
+  // Date
+  pdf.setFontSize(13); pdf.setFont('helvetica','normal');
+  pdf.setTextColor(200,220,255);
+  pdf.text(`Données au ${dateRef}`, pageW/2, pageH*0.68, {align:'center'});
+
+  // Sous-titre
+  pdf.setFontSize(9); pdf.setTextColor(150,180,220);
+  pdf.text('Direction Générale des Douanes et Droits Indirects', pageW/2, pageH*0.74, {align:'center'});
+
+  pdf.setFont('helvetica','normal'); pdf.setTextColor(0);
 }
+
+/* ── EN-TÊTE D'ONGLET ── */
+function addTabHeader(pdf, tabDef, pageW, margin, dateRef){
+  pdf.setFillColor(0, 47, 108);
+  pdf.rect(margin, margin, pageW-2*margin, 10, 'F');
+  pdf.setFontSize(11); pdf.setTextColor(255,255,255); pdf.setFont('helvetica','bold');
+  const label = (tabDef?.label||'') + ' — Consolidation DGDDI';
+  pdf.text(label, margin+4, margin+7);
+  pdf.setTextColor(180,210,255); pdf.setFontSize(7); pdf.setFont('helvetica','normal');
+  pdf.text(`Données au ${dateRef}`, pageW-margin-4, margin+7, {align:'right'});
+  pdf.setTextColor(0);
+  return margin + 14; // y après l'en-tête
+}
+
+/* ── KPI via autotable ── */
+async function addKpiSection(pdf, tabId, yStart, pageW, pageH, margin, orient, inclDate){
+  // Extraire les KPI depuis le HTML généré
+  const html = (window['tab'+tabId.charAt(0).toUpperCase()+tabId.slice(1)] ||
+                window['tab'+tabId[0].toUpperCase()+tabId.slice(1)] || (()=>''))();
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  const cards = tmp.querySelectorAll('.kg-card');
+  if(!cards.length) return yStart;
+
+  const kpiData = [...cards].map(c => [
+    c.querySelector('.kg-val')?.textContent?.trim()||'',
+    c.querySelector('.kg-lbl')?.textContent?.trim()||''
+  ]);
+
+  // Afficher comme tableau 1 ligne
+  const cols = kpiData.length;
+  const colW  = (pageW - 2*margin) / cols;
+
+  pdf.setFillColor(230,236,248);
+  kpiData.forEach((kpi, i)=>{
+    const x = margin + i*colW;
+    pdf.setFillColor(230,236,248);
+    pdf.rect(x, yStart, colW-1, 14, 'F');
+    pdf.setFontSize(12); pdf.setTextColor(0,47,108); pdf.setFont('helvetica','bold');
+    pdf.text(kpi[0], x+colW/2, yStart+6, {align:'center'});
+    pdf.setFontSize(7); pdf.setTextColor(74,90,106); pdf.setFont('helvetica','normal');
+    pdf.text(kpi[1], x+colW/2, yStart+11, {align:'center'});
+  });
+  pdf.setTextColor(0);
+  return yStart + 17;
+}
+
+/* ── TABLEAU via autotable ── */
+async function addTableSection(pdf, tabId, html, yStart, pageW, pageH, margin, orient, inclDate, tabDef){
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  const tables = tmp.querySelectorAll('table');
+  if(!tables.length) return yStart;
+
+  let y = yStart;
+
+  tables.forEach((tbl, tblIdx) => {
+    // Titre du tableau (twrap-title précédent)
+    const twrap = tbl.closest('.twrap') || tbl.parentElement?.parentElement;
+    const titleEl = twrap?.querySelector('.twrap-title');
+    if(titleEl){
+      pdf.setFillColor(0,47,108);
+      pdf.rect(margin, y, pageW-2*margin, 7, 'F');
+      pdf.setFontSize(9); pdf.setTextColor(255,255,255); pdf.setFont('helvetica','bold');
+      pdf.text(titleEl.textContent.replace(/[^\x20-\x7E\xC0-\xFF]/g,'').trim(), margin+3, y+5);
+      pdf.setFont('helvetica','normal'); pdf.setTextColor(0);
+      y += 8;
+    }
+
+    // Extraire head + body du tableau
+    const headers = [...tbl.querySelectorAll('thead tr')].map(tr =>
+      [...tr.querySelectorAll('th')].map(th => ({
+        content: th.textContent.trim(),
+        colSpan: parseInt(th.getAttribute('colspan')||1),
+        styles: {
+          fillColor:[230,236,248], textColor:[0,47,108],
+          fontStyle:'bold', fontSize:7.5, halign: th.classList.contains('tr')?'right':'left'
+        }
+      }))
+    );
+
+    const bodyRows = [...tbl.querySelectorAll('tbody tr')].map(tr => {
+      const type = [...tr.classList].find(c=>c.startsWith('r-'))?.replace('r-','') || '';
+      const bgMap = {SIEGE:[245,240,255],DI:[238,245,255],DR:[248,251,255],SCN:[240,255,245]};
+      const bg = bgMap[type]||[255,255,255];
+      return [...tr.querySelectorAll('td')].map((td,ci) => ({
+        content: td.textContent.replace(/[^\x20-\x7EÀ-ÿ]/g,' ').replace(/\s+/g,' ').trim(),
+        colSpan: parseInt(td.getAttribute('colspan')||1),
+        styles: {
+          fillColor: bg,
+          fontSize: 7.5,
+          halign: td.classList.contains('tr')?'right': td.classList.contains('tc')?'center':'left',
+          fontStyle: td.style.fontWeight==='700'||td.classList.contains('tbold')?'bold':'normal',
+          cellPadding: {top:2,bottom:2,left: ci===0&&type==='DR'?8:3, right:3}
+        }
+      }));
+    });
+
+    const footRows = [...tbl.querySelectorAll('tfoot tr')].map(tr =>
+      [...tr.querySelectorAll('td')].map(td => ({
+        content: td.textContent.trim(),
+        colSpan: parseInt(td.getAttribute('colspan')||1),
+        styles: { fillColor:[230,236,248], fontStyle:'bold', fontSize:7.5,
+                  halign: td.classList.contains('tr')?'right':'left' }
+      }))
+    );
+
+    pdf.autoTable({
+      head: headers,
+      body: bodyRows,
+      foot: footRows,
+      startY: y,
+      margin: { left:margin, right:margin, top: margin+12, bottom: inclDate?14:10 },
+      theme: 'grid',
+      styles: { fontSize:7.5, cellPadding:2, overflow:'linebreak', lineColor:[205,214,228], lineWidth:0.1 },
+      headStyles: { fillColor:[230,236,248], textColor:[0,47,108], fontStyle:'bold', fontSize:7.5 },
+      footStyles: { fillColor:[230,236,248], fontStyle:'bold' },
+      showFoot: 'lastPage',
+      // Répéter l'en-tête sur chaque page
+      showHead: 'everyPage',
+      // Éviter de couper une DI et ses DR entre deux pages
+      rowPageBreak: 'auto',
+      didDrawPage: function(data){
+        // En-tête sur les pages de continuation
+        if(data.pageNumber > 1){
+          addTabHeader(pdf, tabDef, pageW, margin, '');
+        }
+        // Pied de page
+        if(inclDate){
+          pdf.setFontSize(7); pdf.setTextColor(120);
+          pdf.text(
+            `Tableau de bord de la DGDDI — Données au ${(window._pdfDateRef||'')} — Page ${pdf.internal.getNumberOfPages()}`,
+            margin, pageH-4
+          );
+          pdf.setTextColor(0);
+        }
+      }
+    });
+
+    y = pdf.lastAutoTable.finalY + 6;
+  });
+
+  return y;
+}
+
+/* ── PIED DE PAGE ── */
+function addFooter(pdf, tabDef, dateRef, pageW, pageH, margin){
+  // Stocke la date pour didDrawPage
+  window._pdfDateRef = dateRef;
+}
+
+/* ── CHARGEMENT IMAGE BASE64 ── */
+function loadImageAsBase64(url){
+  return new Promise((resolve, reject)=>{
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = function(){
+      const c = document.createElement('canvas');
+      c.width=img.width; c.height=img.height;
+      c.getContext('2d').drawImage(img,0,0);
+      resolve(c.toDataURL('image/png'));
+    };
+    img.onerror = ()=>reject(new Error('Image non chargeable'));
+    img.src = url;
+    setTimeout(()=>reject(new Error('Timeout')), 5000);
+  });
+}
+
 
 window.addEventListener('load',initGrist);
 </script>

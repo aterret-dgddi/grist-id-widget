@@ -1390,6 +1390,12 @@ function buildPdfHTML(s, blocs, inclAttn, inclDR){
   const vh=(D.vehicules||[]).find(r=>r[CFG.c.VH.struct]==id);
   const fm=(D.fraisMission||[]).filter(r=>r[CFG.c.FM.struct]==id);
   const cm=(D.commentaires||[]).filter(r=>r[CFG.c.CM.struct]==id);
+  // DR rattachées (pour les DI)
+  const drs=s[CFG.c.S.type]==='DI'
+    ?(D.structures||[]).filter(r=>r[CFG.c.S.type]==='DR'&&r[CFG.c.S.parent]==id)
+    :[];
+  // Variable html accumulatrice — DOIT être déclarée avant tout bloc
+  let html='';
 
   // En-tête + points d&#39;attention
   if(blocs.includes('header')){
