@@ -156,17 +156,23 @@ body{font-family:'Cabin',sans-serif;background:#F2F5FA;color:var(--gris1);line-h
 .b-DR{background:#1351A8;color:#fff;}
 #cur-parent{font-size:11px;color:var(--gris3);font-style:italic;}
 
-/* Raccourcis rapides */
+/* Raccourcis rapides — barre horizontale scrollable */
 #quick-nav{
-  display:flex;gap:6px;flex-wrap:wrap;
-  padding:0 18px 10px;background:#fff;
-  border-bottom:1px solid var(--bord);
+  background:#fff;border-bottom:1px solid var(--bord);
+  padding:6px 18px;display:flex;align-items:center;gap:8px;
+  overflow-x:auto;white-space:nowrap;
+  scrollbar-width:thin;scrollbar-color:var(--bord) transparent;
 }
-.qnav-label{font-size:10.5px;color:var(--gris3);align-self:center;white-space:nowrap;}
+#quick-nav::-webkit-scrollbar{height:3px;}
+#quick-nav::-webkit-scrollbar-track{background:transparent;}
+#quick-nav::-webkit-scrollbar-thumb{background:var(--bord);border-radius:2px;}
+#qnav-items{display:contents;}
+.qnav-label{font-size:10.5px;color:var(--gris3);flex-shrink:0;white-space:nowrap;}
+.qnav-sep{width:1px;height:16px;background:var(--bord);flex-shrink:0;}
 .qnav-btn{
   padding:3px 10px;background:var(--gris4);border:1px solid var(--bord);
   border-radius:20px;font-size:11px;font-weight:600;color:var(--gris2);
-  cursor:pointer;transition:all .15s;white-space:nowrap;
+  cursor:pointer;transition:all .15s;white-space:nowrap;flex-shrink:0;
 }
 .qnav-btn:hover{background:var(--rep-pale);border-color:var(--rep2);color:var(--rep);}
 .qnav-btn.active{background:var(--rep);border-color:var(--rep);color:#fff;}
@@ -415,9 +421,25 @@ body{font-family:'Cabin',sans-serif;background:#F2F5FA;color:var(--gris1);line-h
 .leg-item{display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--gris2);}
 .leg-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
 .comment-zone{margin-top:12px;border-top:1px dashed var(--bord);padding-top:10px;}
-.comment-label{font-size:10px;font-weight:700;color:var(--gris3);letter-spacing:.6px;text-transform:uppercase;margin-bottom:5px;}
+.comment-label{font-size:10px;font-weight:700;color:var(--gris3);letter-spacing:.6px;text-transform:uppercase;margin-bottom:5px;display:flex;align-items:center;justify-content:space-between;}
 .comment-text{font-size:12px;color:var(--gris2);line-height:1.6;min-height:24px;font-style:italic;}
 .comment-empty{color:var(--gris3);font-style:italic;}
+.edit-btn{background:none;border:1px solid var(--bord);border-radius:4px;padding:2px 7px;font-size:11px;cursor:pointer;color:var(--gris3);transition:all .15s;}
+.edit-btn:hover{background:var(--rep-pale);border-color:var(--rep2);color:var(--rep);}
+.edit-zone{margin-top:6px;display:none;}
+.edit-zone.open{display:block;}
+.edit-textarea{width:100%;min-height:70px;padding:8px 10px;border:1.5px solid var(--rep2);border-radius:5px;font-family:'Cabin',sans-serif;font-size:12px;color:var(--gris1);resize:vertical;outline:none;background:#fff;line-height:1.6;box-sizing:border-box;}
+.edit-actions{display:flex;gap:6px;margin-top:6px;align-items:center;}
+.btn-save{background:var(--rep);color:#fff;border:none;padding:5px 14px;border-radius:4px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:'Cabin',sans-serif;}
+.btn-save:hover{background:var(--rep2);}
+.btn-save:disabled{opacity:.5;cursor:not-allowed;}
+.btn-cancel-edit{background:var(--gris4);color:var(--gris2);border:1px solid var(--bord);padding:5px 12px;border-radius:4px;font-size:11.5px;cursor:pointer;font-family:'Cabin',sans-serif;}
+.save-msg{font-size:11px;color:var(--vert);display:none;}
+.save-msg.show{display:block;}
+.attn-edit-btn{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer;margin-left:8px;}
+.attn-edit-btn:hover{background:rgba(255,255,255,.35);}
+.attn-edit-zone{margin-top:10px;display:none;}
+.attn-edit-zone.open{display:block;}
 .dr-toggle{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--rep2);cursor:pointer;margin-top:10px;padding:5px 8px;background:var(--rep-pale);border-radius:4px;user-select:none;}
 .dr-toggle:hover{background:#d4e0f5;}
 .dr-list{display:none;margin-top:8px;}
@@ -621,6 +643,8 @@ body{font-family:'Cabin',sans-serif;background:#F2F5FA;color:var(--gris1);line-h
 <script>
 /* ── Fonctions utilitaires globales — définies en premier ── */
 function n(v){ var x=parseFloat(v); return isNaN(x)?0:x; }
+/* Grist peut renvoyer les Choice comme ["L","valeur"] — on extrait la chaîne */
+function strVal(v){ if(Array.isArray(v)) return v[1]||''; return v==null?'':String(v); }
 function fmt(v){ return v!=null?Number(v).toLocaleString('fr-FR'):'—'; }
 function fmtD(v){ return v!=null?Number(v).toLocaleString('fr-FR',{maximumFractionDigits:1}):'—'; }
 
@@ -628,14 +652,16 @@ function fmtD(v){ return v!=null?Number(v).toLocaleString('fr-FR',{maximumFracti
    CONFIG
 ═══════════════════════════════════════════════════════ */
 const CFG={
-  tables:{structures:'Structures',contentieux:'Contentieux',budget:'Budget',rh:'RH',immobilier:'Immobilier',vehicules:'Vehicules',fraisMission:'FraisMission',commentaires:'Commentaires'},
+  tables:{structures:'Structures',contentieux:'Contentieux',budget:'Budget',rh:'RH',immobilier:'Immobilier',vehicules:'Vehicules',fraisMission:'FraisMission',commentaires:'Commentaires',moyennes:'Moyennes'},
   c:{
-    S:{id:'id',nom:'Nom',type:'Type',parent:'Parent',region:'Region',chef:'Chef',logo:'Logo',maj:'DateMAJ'},
+    S:{id:'id',nom:'Nom',type:'Type',parent:'Parent',region:'Region',chef:'Chef',logo:'Logo',maj:'DateMAJ',sigle:'Sigle'},
     CT:{struct:'Structure',nb:'NombreTotal',cannabis:'KgCannabis',cocaine:'KgCocaine',tabac:'KgTabac'},
     B:{struct:'Structure',typeb:'TypeBudget',annee:'Annee',ae_n:'AE_Notifiees',ae_d:'AE_MisesADispo',ae_c:'AE_Consommees',cp_n:'CP_Notifiees',cp_d:'CP_MisesADispo',cp_c:'CP_Consommees'},
     RH:{struct:'Structure',rem:'EffectifsRemuneres',cib:'EffectifsCibles',ms:'MasseSalariale',jf:'JoursFormationParAgent',abs:'AbsenteismeJours',age:'AgeMoyen'},
     IM:{struct:'Structure',site:'NomSite',occ:'TypeOccupation',adr:'Adresse',m2:'M2Occupes',cout:'CoutGestionM2',loyer:'LoyerAnnuel'},
-    VH:{struct:'Structure',nb:'NbVehicules',vet_s:'TauxVetusteStructure',vet_n:'TauxVetusteMoyenNational',vpa_s:'VehiculesParAgent',vpa_n:'VehiculesMoyenNational'},
+    VH:{struct:'Structure',nb:'NbVehicules',vet_s:'TauxVetusteStructure',vpa_s:'VehiculesParAgent'},
+    // Moyennes nationales lues depuis la table Moyennes (formules Grist)
+    MO:{vet_n:'TauxVetusteMoyenNational',vpa_n:'VehiculesMoyenNational',age_n:'AgeMoyenNational',abs_n:'AbsenteismeMoyenNational'},
     FM:{struct:'Structure',type:'TypeMission',annee:'Annee',mt:'MontantTotal',tr:'PartTransport',hb:'PartHebergement',rp:'PartRepas'},
     // Commentaires : Bloc peut valoir 'contentieux','budget','rh','immobilier',
     //   'vehicules','fraisMission', 'pointsAttention' (texte libre) ou 'chantier' (une pillule par ligne)
@@ -648,6 +674,7 @@ const CFG={
 ═══════════════════════════════════════════════════════ */
 let D={};
 let current=null;
+let _curId=0;  // id de la structure en cours de rendu
 let pdfFormat='single';
 let selectedStructsForPdf=new Set();
 let focusedOptIdx=-1;
@@ -902,17 +929,17 @@ function setStatus(msg, isError) {
 function loadDemo(){
   D={
     structures:[
-      {id:1,Nom:'Direction Générale — Siège',Type:'SIEGE',Parent:null,Region:'Île-de-France',Chef:'M. Jean DUPONT',Logo:'',DateMAJ:'2025-04-01'},
-      {id:2,Nom:'Direction Interrégionale Nord',Type:'DI',Parent:null,Region:'Hauts-de-France',Chef:'Mme Claire MARTIN',Logo:'',DateMAJ:'2025-04-01'},
+      {id:1,Nom:'Direction Générale — Siège',Type:'SIEGE',Parent:null,Region:'Île-de-France',Chef:'M. Jean DUPONT',Logo:'',DateMAJ:'2025-04-01',Sigle:'Siège DG'},
+      {id:2,Nom:'Direction Interrégionale Nord',Type:'DI',Parent:null,Region:'Hauts-de-France',Chef:'Mme Claire MARTIN',Logo:'',DateMAJ:'2025-04-01',Sigle:'DI Nord'},
       {id:3,Nom:'Direction Régionale Nord-Est',Type:'DR',Parent:2,Region:'Grand Est',Chef:'M. Pierre LEFEBVRE',Logo:'',DateMAJ:'2025-04-01'},
       {id:4,Nom:'Direction Régionale Nord-Ouest',Type:'DR',Parent:2,Region:'Normandie',Chef:'Mme Anne BERNARD',Logo:'',DateMAJ:'2025-04-01'},
-      {id:5,Nom:'Direction Interrégionale Sud',Type:'DI',Parent:null,Region:'Occitanie',Chef:'M. Paul ROUX',Logo:'',DateMAJ:'2025-04-01'},
+      {id:5,Nom:'Direction Interrégionale Sud',Type:'DI',Parent:null,Region:'Occitanie',Chef:'M. Paul ROUX',Logo:'',DateMAJ:'2025-04-01',Sigle:'DI Sud'},
       {id:6,Nom:'Direction Régionale Sud-Est',Type:'DR',Parent:5,Region:'PACA',Chef:'Mme Sophie GIRARD',Logo:'',DateMAJ:'2025-04-01'},
-      {id:7,Nom:'Direction Interrégionale Est',Type:'DI',Parent:null,Region:'Grand Est',Chef:'M. Henri BLANC',Logo:'',DateMAJ:'2025-04-01'},
+      {id:7,Nom:'Direction Interrégionale Est',Type:'DI',Parent:null,Region:'Grand Est',Chef:'M. Henri BLANC',Logo:'',DateMAJ:'2025-04-01',Sigle:'DI Est'},
       {id:8,Nom:'Direction Régionale Alsace',Type:'DR',Parent:7,Region:'Alsace',Chef:'Mme Lucie WAGNER',Logo:'',DateMAJ:'2025-04-01'},
-      {id:9,Nom:'Service à Compétence Nationale A',Type:'SCN',Parent:null,Region:'Île-de-France',Chef:'M. Luc MOREAU',Logo:'',DateMAJ:'2025-04-01'},
-      {id:10,Nom:'Service à Compétence Nationale B',Type:'SCN',Parent:null,Region:'Rhône-Alpes',Chef:'Mme Isabelle PETIT',Logo:'',DateMAJ:'2025-04-01'},
-      {id:11,Nom:'Service à Compétence Nationale C',Type:'SCN',Parent:null,Region:'Bretagne',Chef:'M. Yann THOMAS',Logo:'',DateMAJ:'2025-04-01'},
+      {id:9,Nom:'Service à Compétence Nationale A',Type:'SCN',Parent:null,Region:'Île-de-France',Chef:'M. Luc MOREAU',Logo:'',DateMAJ:'2025-04-01',Sigle:'SCN-A'},
+      {id:10,Nom:'Service à Compétence Nationale B',Type:'SCN',Parent:null,Region:'Rhône-Alpes',Chef:'Mme Isabelle PETIT',Logo:'',DateMAJ:'2025-04-01',Sigle:'SCN-B'},
+      {id:11,Nom:'Service à Compétence Nationale C',Type:'SCN',Parent:null,Region:'Bretagne',Chef:'M. Yann THOMAS',Logo:'',DateMAJ:'2025-04-01',Sigle:'SCN-C'},
     ],
     contentieux:[
       {id:1,Structure:1,NombreTotal:12,KgCannabis:450.5,KgCocaine:120.0,KgTabac:8500.0},
@@ -963,6 +990,10 @@ function loadDemo(){
       {id:8, Structure:1,TypeMission:'AutresMissions',Annee:2025,MontantTotal:47000, PartTransport:50,PartHebergement:33,PartRepas:17},
       {id:9, Structure:2,TypeMission:'Formation',     Annee:2022,MontantTotal:35000, PartTransport:55,PartHebergement:28,PartRepas:17},
       {id:10,Structure:2,TypeMission:'AutresMissions',Annee:2022,MontantTotal:107000,PartTransport:47,PartHebergement:35,PartRepas:18},
+    ],
+    moyennes:[
+      // Une seule ligne — les formules Grist calculent automatiquement
+      {id:1,TauxVetusteMoyenNational:32,VehiculesMoyenNational:0.28,AgeMoyenNational:43.5,AbsenteismeMoyenNational:440},
     ],
     commentaires:[
       // Commentaires par bloc indicateur
@@ -1156,9 +1187,15 @@ function selectStructure(id){
 function buildQuickNav(){
   const S=selectorStructures();
   const container=document.getElementById('qnav-items');
-  container.innerHTML=S.map(s=>
-    `<div class="qnav-btn" data-id="${s.id}" onclick="selectStructure(${s.id})">${s[CFG.c.S.nom].replace('Direction ','').replace('Service à Compétence Nationale','SCN')}</div>`
-  ).join('');
+  container.innerHTML=S.map(s=>{
+    // Utiliser le sigle s'il existe, sinon abréger le nom
+    const label = s[CFG.c.S.sigle] || s[CFG.c.S.nom]
+      .replace('Direction Générale','DG')
+      .replace('Direction Interrégionale','DI')
+      .replace('Service à Compétence Nationale','SCN')
+      .replace('Direction ','');
+    return `<div class="qnav-btn" data-id="${s.id}" onclick="selectStructure(${s.id})" title="${s[CFG.c.S.nom]}">${label}</div>`;
+  }).join('');
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -1400,7 +1437,7 @@ function buildPdfHTML(s, blocs, inclAttn, inclDR){
     types.forEach(t=>{
       const r=bu.find(x=>x[c.typeb]===t);
       if(!r) return;
-      const aen=r[c.ae_n]||0,aec=r[c.ae_c]||0,cpn=r[c.cp_n]||0,cpc=r[c.cp_c]||0;
+      const aen=n(r[c.ae_n])||0,aec=n(r[c.ae_c])||0,cpn=n(r[c.cp_n])||0,cpc=n(r[c.cp_c])||0;
       const pae=aen?Math.round(aec/aen*100):0, pcp=cpn?Math.round(cpc/cpn*100):0;
       const ca=pae>95?'danger':pae>80?'warn':'ok', cc=pcp>95?'danger':pcp>80?'warn':'ok';
       rows+=`<tr><td>${t}</td><td class="tr">${fmt(aen)} €</td><td class="tr">${fmt(aec)} €</td>
@@ -1534,6 +1571,7 @@ ${ficheHTML}
 ═══════════════════════════════════════════════════════ */
 function renderFiche(s){
   const id=s.id;
+  _curId=id;  // utilisé par renderCmt pour la sauvegarde
   const body=document.getElementById('fiche-body');
   body.style.display='block';
   const ct=(D.contentieux||[]).filter(r=>r[CFG.c.CT.struct]==id);
@@ -1549,38 +1587,63 @@ function renderFiche(s){
 
 function renderHeader(s){
   const c=CFG.c.S;
-  const logo=s[c.logo];
-  const logoH=logo?`<img src="${logo}" alt="Logo">`:`<svg viewBox="0 0 64 64" width="64" xmlns="http://www.w3.org/2000/svg" opacity=".3"><rect x="8" y="22" width="48" height="32" rx="2" fill="#002F6C"/><rect x="24" y="10" width="16" height="14" rx="1" fill="#002F6C"/><rect x="14" y="36" width="14" height="18" rx="1" fill="#fff"/><rect x="36" y="36" width="14" height="12" rx="1" fill="#fff"/></svg><span>Logo 180×221 px</span>`;
-  return`<div class="fiche-header"><div class="logo-box">${logoH}</div><div class="hdr-info"><h2>${s[c.nom]}</h2><div class="hdr-sous">${s[c.type]}${s[c.region]?' — '+s[c.region]:''}</div><div class="hdr-meta">${s[c.chef]?`<div class="meta-pill">👤 <strong>Responsable :</strong> ${s[c.chef]}</div>`:''} ${s[c.region]?`<div class="meta-pill">📍 <strong>Région :</strong> ${s[c.region]}</div>`:''}</div><div class="hdr-date">Données au ${s[c.maj]||'N/A'}</div></div></div>`;
+  return`<div class="fiche-header">
+    <div class="logo-box"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/1d/Logo_des_Douanes_Fran%C3%A7aises.svg/250px-Logo_des_Douanes_Fran%C3%A7aises.svg.png" alt="Logo des Douanes françaises" onerror="this.style.opacity='.3'"></div>
+    <div class="hdr-info">
+      <h2>${s[c.nom]}</h2>
+      <div class="hdr-sous">${s[c.type]}${s[c.region]?' — '+s[c.region]:''}</div>
+      <div class="hdr-meta">
+        ${s[c.chef]?`<div class="meta-pill">👤 <strong>Responsable :</strong> ${s[c.chef]}</div>`:''}
+        ${s[c.region]?`<div class="meta-pill">📍 <strong>Région :</strong> ${s[c.region]}</div>`:''}
+      </div>
+      <div class="hdr-date">Données au ${s[c.maj]||'N/A'}</div>
+    </div>
+  </div>`;
 }
 function renderPointsAttn(cm){
-  // Table Commentaires, deux blocs dédiés :
-  //   Bloc='pointsAttention'  → texte libre de synthèse (1 ligne)
-  //   Bloc='chantier'         → une pillule par ligne (N lignes, sans limite)
   const c = CFG.c.CM;
   const paRec     = cm.find(r => r[c.bloc] === 'pointsAttention');
   const chantiers = cm.filter(r => r[c.bloc] === 'chantier').map(r => r[c.txt]).filter(Boolean);
   const txt = paRec ? (paRec[c.txt] || '') : '';
+  const cmId = paRec ? paRec.id : null;
+  const canEdit = typeof grist !== 'undefined' && typeof grist.docApi !== 'undefined';
+  const editBtn = canEdit
+    ? `<button class="attn-edit-btn" onclick="toggleAttnEdit()" title="Modifier les points d'attention">✏️ Modifier</button>`
+    : '';
 
-  return '<div class="attn-box">' +
-    '<div class="attn-title">&#9888;&#65039; Points d&#39;attention &amp; chantiers structurants</div>' +
-    '<div class="attn-text">' + (txt || '<em style="color:#9A7A20">Aucun point d&#39;attention &mdash; ajoutez une ligne Bloc=pointsAttention dans la table Commentaires.</em>') + '</div>' +
-    (chantiers.length
-      ? '<div class="attn-chantiers">' + chantiers.map(function(ch){ return '<span class="chantier-pill">&#128295; ' + ch + '</span>'; }).join('') + '</div>'
-      : '<div style="font-size:10.5px;color:#9A7A20;margin-top:8px;font-style:italic">Ajoutez des lignes Bloc=chantier dans la table Commentaires pour afficher des chantiers structurants.</div>'
-    ) +
-    '</div>';
+  return `<div class="attn-box">
+    <div class="attn-title" style="display:flex;align-items:center;justify-content:space-between;">
+      <span>&#9888;&#65039; Points d&#39;attention &amp; chantiers structurants</span>
+      ${editBtn}
+    </div>
+    <div class="attn-text" id="attn-display">${txt || '<em style="color:#9A7A20">Aucun point d\'attention renseigné.</em>'}</div>
+    ${chantiers.length
+      ? `<div class="attn-chantiers" id="attn-chantiers-list">${chantiers.map(function(ch){ return '<span class="chantier-pill">&#128295; ' + ch + '</span>'; }).join('')}</div>`
+      : '<div id="attn-chantiers-list" style="font-size:10.5px;color:#9A7A20;margin-top:8px;font-style:italic">Ajoutez des lignes Bloc=chantier dans la table Commentaires.</div>'
+    }
+    <div class="attn-edit-zone" id="attn-edit-zone">
+      <div style="font-size:11px;font-weight:700;color:#7A5800;margin-bottom:4px;">Texte de synthèse (Bloc=pointsAttention)</div>
+      <textarea class="edit-textarea" id="attn-ta-txt" rows="3">${txt||''}</textarea>
+      <div style="font-size:11px;font-weight:700;color:#7A5800;margin:8px 0 4px;">Chantiers (un par ligne, Bloc=chantier)</div>
+      <textarea class="edit-textarea" id="attn-ta-chantiers" rows="4">${chantiers.join('\n')}</textarea>
+      <div class="edit-actions">
+        <button class="btn-save" onclick="savePointsAttn(${cmId})">💾 Enregistrer</button>
+        <button class="btn-cancel-edit" onclick="toggleAttnEdit()">Annuler</button>
+        <span class="save-msg" id="attn-save-msg">✅ Sauvegardé</span>
+      </div>
+    </div>
+  </div>`;
 }
 function renderContentieux(data,cms,drs){
   const c=CFG.c.CT, cm=cms.find(x=>x[CFG.c.CM.bloc]==='contentieux');
   const tot=data.reduce((s,r)=>s+(r[c.nb]||0),0);
   const clsN=tot===0?'vert':tot<5?'':tot<10?'orange':'rouge';
   const can=data.reduce((s,r)=>s+(r[c.cannabis]||0),0), coc=data.reduce((s,r)=>s+(r[c.cocaine]||0),0), tab=data.reduce((s,r)=>s+(r[c.tabac]||0),0);
-  return`<div class="section"><div class="sec-hdr"><span class="ico">⚖️</span><h3>Contentieux</h3></div><div class="sec-body"><div class="kpi-row"><div class="kpi ${clsN}"><div class="kv">${tot}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Dossiers</div></div><div class="kpi"><div class="kv" style="font-size:15px">${fmtD(can)} kg</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Cannabis</div></div><div class="kpi"><div class="kv" style="font-size:15px">${fmtD(coc)} kg</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Cocaïne</div></div><div class="kpi"><div class="kv" style="font-size:15px">${fmtD(tab)} kg</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Tabac</div></div></div>${drs.length?renderDRBlock(drs,'contentieux'):''}${renderCmt(cm)}</div></div>`;
+  return`<div class="section"><div class="sec-hdr"><span class="ico">⚖️</span><h3>Contentieux</h3></div><div class="sec-body"><div class="kpi-row"><div class="kpi ${clsN}"><div class="kv">${tot}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Dossiers</div></div><div class="kpi"><div class="kv" style="font-size:15px">${fmtD(can)} kg</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Cannabis</div></div><div class="kpi"><div class="kv" style="font-size:15px">${fmtD(coc)} kg</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Cocaïne</div></div><div class="kpi"><div class="kv" style="font-size:15px">${fmtD(tab)} kg</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Tabac</div></div></div>${drs.length?renderDRBlock(drs,'contentieux'):''}${renderCmt(cm,'contentieux',_curId)}</div></div>`;
 }
 function renderBudget(data,cms){
   const c=CFG.c.B, cm=cms.find(x=>x[CFG.c.CM.bloc]==='budget');
-  if(!data.length) return secEmpty('💶','Budget',cm,'full');
+  if(!data.length) return secEmpty('💶','Budget',cm,'full','budget');
   const types=['Fonctionnement','Investissement','Intervention'];
   const renderType=(label,rows)=>{
     if(!rows.length) return '';
@@ -1591,43 +1654,45 @@ function renderBudget(data,cms){
     const cA=pAE>95?'pf-danger':pAE>80?'pf-warn':'pf-ok', cC=pCP>95?'pf-danger':pCP>80?'pf-warn':'pf-ok';
     return`<div class="sub-title">${label} — ${r[c.annee]||''}</div><table class="dt" style="margin-bottom:8px"><thead><tr><th></th><th class="tr">Notifiées</th><th class="tr">Mises à dispo</th><th class="tr">Consommées</th><th class="tr">Taux exec.</th></tr></thead><tbody><tr><td class="tbold">AE</td><td class="tr">${fmt(aen)} €</td><td class="tr">${fmt(aed)} €</td><td class="tr">${fmt(aec)} €</td><td class="tc"><div>${pAE}%</div><div class="prog-bar" style="width:70px;display:inline-block;margin-top:2px"><div class="prog-fill ${cA}" style="width:${Math.min(pAE,100)}%"></div></div></td></tr><tr><td class="tbold">CP</td><td class="tr">${fmt(cpn)} €</td><td class="tr">${fmt(cpd)} €</td><td class="tr">${fmt(cpc)} €</td><td class="tc"><div>${pCP}%</div><div class="prog-bar" style="width:70px;display:inline-block;margin-top:2px"><div class="prog-fill ${cC}" style="width:${Math.min(pCP,100)}%"></div></div></td></tr></tbody></table>`;
   };
-  return`<div class="section full"><div class="sec-hdr"><span class="ico">💶</span><h3>Budget</h3></div><div class="sec-body">${types.map(t=>renderType(t,data.filter(r=>r[c.typeb]===t))).join('')}${renderCmt(cm)}</div></div>`;
+  return`<div class="section full"><div class="sec-hdr"><span class="ico">💶</span><h3>Budget</h3></div><div class="sec-body">${types.map(t=>renderType(t,data.filter(r=>strVal(r[c.typeb])===t))).join('')}${renderCmt(cm,'contentieux',id)}</div></div>`;
 }
 function renderRH(d,cms,drs){
   const c=CFG.c.RH, cm=cms.find(x=>x[CFG.c.CM.bloc]==='rh');
-  if(!d) return secEmpty('👥','Situation RH',cm);
+  if(!d) return secEmpty('👥','Situation RH',cm,'','rh');
   const rem=n(d[c.rem]),cib=n(d[c.cib]), pct=cib?Math.round(rem/cib*100):0;
-  return`<div class="section"><div class="sec-hdr"><span class="ico">👥</span><h3>Situation RH</h3></div><div class="sec-body"><div class="kpi-row"><div class="kpi"><div class="kv">${rem}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Eff. rémunérés</div></div><div class="kpi"><div class="kv">${cib}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Eff. cibles</div></div><div class="kpi ${pct<90?'orange':'vert'}"><div class="kv">${pct}%</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Couverture</div></div></div><div class="prog-wrap"><div class="prog-label"><span>${rem}/${cib}</span><span>${pct}%</span></div><div class="prog-bar"><div class="prog-fill ${pct<90?'pf-warn':'pf-ok'}" style="width:${Math.min(pct,100)}%"></div></div></div><div class="kpi-row" style="margin-top:10px"><div class="kpi vert"><div class="kv" style="font-size:14px">${fmt(d[c.ms]||0)} €</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Masse salariale</div></div><div class="kpi"><div class="kv">${fmtD(d[c.jf]||0)}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">J. form./agent</div></div><div class="kpi orange"><div class="kv">${d[c.abs]||0}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">J. absentéisme</div></div><div class="kpi"><div class="kv">${fmtD(d[c.age]||0)}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Âge moyen</div></div></div>${drs.length?renderDRBlock(drs,'rh'):''}${renderCmt(cm)}</div></div>`;
+  return`<div class="section"><div class="sec-hdr"><span class="ico">👥</span><h3>Situation RH</h3></div><div class="sec-body"><div class="kpi-row"><div class="kpi"><div class="kv">${rem}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Eff. rémunérés</div></div><div class="kpi"><div class="kv">${cib}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Eff. cibles</div></div><div class="kpi ${pct<90?'orange':'vert'}"><div class="kv">${pct}%</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Couverture</div></div></div><div class="prog-wrap"><div class="prog-label"><span>${rem}/${cib}</span><span>${pct}%</span></div><div class="prog-bar"><div class="prog-fill ${pct<90?'pf-warn':'pf-ok'}" style="width:${Math.min(pct,100)}%"></div></div></div><div class="kpi-row" style="margin-top:10px"><div class="kpi vert"><div class="kv" style="font-size:14px">${fmt(d[c.ms]||0)} €</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Masse salariale</div></div><div class="kpi"><div class="kv">${fmtD(d[c.jf]||0)}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">J. form./agent</div></div><div class="kpi orange"><div class="kv">${n(d[c.abs])}</div>${(function(){ var mo=(D.moyennes||[])[0]||{}; var absN=n(mo[CFG.c.MO.abs_n]); return absN?'<div class="kl" style="font-size:9.5px;color:var(--gris2)">abs. (moy.nat. '+absN+')</div>':'<div class="kl" style="font-size:10.5px;color:var(--gris2)">J. absentéisme</div>'; })()}</div><div class="kpi"><div class="kv">${fmtD(d[c.age]||0)}</div>${(function(){ var mo=(D.moyennes||[])[0]||{}; var ageN=n(mo[CFG.c.MO.age_n]); return ageN?'<div class="kl" style="font-size:9.5px;color:var(--gris2)">ans (moy.nat. '+fmtD(ageN)+')</div>':'<div class="kl" style="font-size:10.5px;color:var(--gris2)">Âge moyen</div>'; })()}</div></div>${drs.length?renderDRBlock(drs,'rh'):''}${renderCmt(cm,'rh',id)}</div></div>`;
 }
 function renderImmobilier(sites,cms){
   const c=CFG.c.IM, cm=cms.find(x=>x[CFG.c.CM.bloc]==='immobilier');
-  if(!sites.length) return secEmpty('🏛️','Situation Immobilière',cm,'full');
+  if(!sites.length) return secEmpty('🏛️','Situation Immobilière',cm,'full','immobilier');
   const pub=sites.filter(s=>s[c.occ]==='Domaine public'), bail=sites.filter(s=>s[c.occ]==='Bail privé');
   const totalM2=sites.reduce((s,r)=>s+(r[c.m2]||0),0), totalLoyer=bail.reduce((s,r)=>s+(r[c.loyer]||0),0);
   const renderSites=(list,label,isBail)=>!list.length?'':
     `<div class="sub-title">${label} (${list.length})</div><table class="dt" style="margin-bottom:8px"><thead><tr><th>Site</th><th>Adresse</th><th class="tr">m²</th><th class="tr">Coût/m²</th>${isBail?'<th class="tr">Loyer/an</th>':''}</tr></thead><tbody>${list.map(s=>`<tr><td class="tbold">${s[c.site]}</td><td class="td-sub">${s[c.adr]}</td><td class="tr">${fmt(s[c.m2])} m²</td><td class="tr">${fmt(s[c.cout])} €</td>${isBail?`<td class="tr">${fmt(s[c.loyer])} €</td>`:''}</tr>`).join('')}</tbody></table>`;
-  return`<div class="section full"><div class="sec-hdr"><span class="ico">🏛️</span><h3>Situation Immobilière</h3></div><div class="sec-body"><div class="kpi-row"><div class="kpi"><div class="kv">${pub.length+bail.length}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Sites</div></div><div class="kpi vert"><div class="kv" style="font-size:14px">${fmt(totalM2)}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">m² occupés</div></div><div class="kpi"><div class="kv">${pub.length}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Domaine public</div></div><div class="kpi orange"><div class="kv">${bail.length}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Baux privés</div></div>${totalLoyer?`<div class="kpi jaune"><div class="kv" style="font-size:13px">${fmt(totalLoyer)} €</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Loyers annuels</div></div>`:''}</div>${renderSites(pub,'Domaine public',false)}${renderSites(bail,'Baux privés',true)}${renderCmt(cm)}</div></div>`;
+  return`<div class="section full"><div class="sec-hdr"><span class="ico">🏛️</span><h3>Situation Immobilière</h3></div><div class="sec-body"><div class="kpi-row"><div class="kpi"><div class="kv">${pub.length+bail.length}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Sites</div></div><div class="kpi vert"><div class="kv" style="font-size:14px">${fmt(totalM2)}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">m² occupés</div></div><div class="kpi"><div class="kv">${pub.length}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Domaine public</div></div><div class="kpi orange"><div class="kv">${bail.length}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Baux privés</div></div>${totalLoyer?`<div class="kpi jaune"><div class="kv" style="font-size:13px">${fmt(totalLoyer)} €</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Loyers annuels</div></div>`:''}</div>${renderSites(pub,'Domaine public',false)}${renderSites(bail,'Baux privés',true)}${renderCmt(cm,'immobilier',id)}</div></div>`;
 }
 function renderVehicules(v,cms,drs){
   const c=CFG.c.VH, cm=cms.find(x=>x[CFG.c.CM.bloc]==='vehicules');
-  if(!v) return secEmpty('🚗','Parc de véhicules',cm);
-  const nb=n(v[c.nb]), vs=n(v[c.vet_s]), vn=n(v[c.vet_n]), ps=n(v[c.vpa_s]), pn=n(v[c.vpa_n]);
+  if(!v) return secEmpty('🚗','Parc de véhicules',cm,'','vehicules');
+  // Lire les moyennes nationales depuis la table Moyennes (1 seule ligne attendue)
+  const mo=(D.moyennes||[])[0]||{};
+  const nb=n(v[c.nb]), vs=n(v[c.vet_s]), vn=n(mo[CFG.c.MO.vet_n]||v.TauxVetusteMoyenNational), ps=n(v[c.vpa_s]), pn=n(mo[CFG.c.MO.vpa_n]||v.VehiculesMoyenNational);
   const clsV=vs>vn?'rouge':vs>vn*.8?'orange':'vert';
   const vsTag=vs>vn?`<span class="vs-nat vs-bad">▲ +${(vs-vn).toFixed(0)} pts vs national</span>`:`<span class="vs-nat vs-ok">▼ ${(vn-vs).toFixed(0)} pts vs national</span>`;
   const psTag=ps>pn?`<span class="vs-nat vs-bad">▲ +${(ps-pn).toFixed(2)} vs national</span>`:`<span class="vs-nat vs-ok">▼ ${(pn-ps).toFixed(2)} vs national</span>`;
-  return`<div class="section"><div class="sec-hdr"><span class="ico">🚗</span><h3>Parc de véhicules</h3></div><div class="sec-body"><div class="kpi-row"><div class="kpi"><div class="kv">${nb}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Véhicules</div></div><div class="kpi ${clsV}"><div class="kv">${vs}%</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Vétusté structure</div></div><div class="kpi"><div class="kv" style="font-size:15px;color:var(--gris2)">${vn}%</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Vétusté nationale</div></div></div><div style="margin:4px 0 10px">${vsTag}</div><div class="prog-wrap"><div class="prog-label"><span>Vétusté structure</span><span>${vs}%</span></div><div class="prog-bar"><div class="prog-fill ${vs>40?'pf-danger':vs>25?'pf-warn':'pf-ok'}" style="width:${vs}%"></div></div></div><div class="kpi-row" style="margin-top:10px"><div class="kpi ${ps>pn?'rouge':'vert'}"><div class="kv">${ps.toFixed(2)}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Véh./agent (struct.)</div></div><div class="kpi"><div class="kv" style="font-size:15px;color:var(--gris2)">${pn.toFixed(2)}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Véh./agent (nat.)</div></div></div><div style="margin:4px 0 8px">${psTag}</div>${drs.length?renderDRBlock(drs,'vehicules'):''}${renderCmt(cm)}</div></div>`;
+  return`<div class="section"><div class="sec-hdr"><span class="ico">🚗</span><h3>Parc de véhicules</h3></div><div class="sec-body"><div class="kpi-row"><div class="kpi"><div class="kv">${nb}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Véhicules</div></div><div class="kpi ${clsV}"><div class="kv">${vs}%</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Vétusté structure</div></div><div class="kpi"><div class="kv" style="font-size:15px;color:var(--gris2)">${vn}%</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Vétusté nationale</div></div></div><div style="margin:4px 0 10px">${vsTag}</div><div class="prog-wrap"><div class="prog-label"><span>Vétusté structure</span><span>${vs}%</span></div><div class="prog-bar"><div class="prog-fill ${vs>40?'pf-danger':vs>25?'pf-warn':'pf-ok'}" style="width:${vs}%"></div></div></div><div class="kpi-row" style="margin-top:10px"><div class="kpi ${ps>pn?'rouge':'vert'}"><div class="kv">${ps.toFixed(2)}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Véh./agent (struct.)</div></div><div class="kpi"><div class="kv" style="font-size:15px;color:var(--gris2)">${pn.toFixed(2)}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Véh./agent (nat.)</div></div></div><div style="margin:4px 0 8px">${psTag}</div>${drs.length?renderDRBlock(drs,'vehicules'):''}${renderCmt(cm,'vehicules',id)}</div></div>`;
 }
 function renderFraisMission(data,cms){
   const c=CFG.c.FM, cm=cms.find(x=>x[CFG.c.CM.bloc]==='fraisMission');
-  if(!data.length) return secEmpty('✈️','Frais de mission',cm,'full');
+  if(!data.length) return secEmpty('✈️','Frais de mission',cm,'full','fraisMission');
   const types=['Formation','AutresMissions'], labels={'Formation':'Formation','AutresMissions':'Autres missions'};
   const maxAll=Math.max(...data.map(r=>n(r[c.mt])),1);
   const renderType=(type)=>{
-    const rows=data.filter(r=>r[c.type]===type).sort((a,b)=>a[c.annee]-b[c.annee]);
+    const rows=data.filter(r=>strVal(r[c.type])===type).sort((a,b)=>a[c.annee]-b[c.annee]);
     if(!rows.length) return '';
     return`<div class="sub-title">${labels[type]}</div><div class="bar-chart">${rows.map(r=>{const mt=n(r[c.mt]),tr=n(r[c.tr]),hb=n(r[c.hb]),rp=n(r[c.rp]),bw=Math.round(mt/maxAll*100);return`<div class="bar-row"><div class="bar-year">${r[c.annee]}</div><div class="bar-outer" style="width:${bw}%"><div class="bar-seg bs-transport" style="width:${tr}%"></div><div class="bar-seg bs-heberg" style="width:${hb}%"></div><div class="bar-seg bs-repas" style="width:${rp}%"></div></div><div class="bar-total">${fmt(mt)} €</div></div>`;}).join('')}</div>`;
   };
-  return`<div class="section full"><div class="sec-hdr"><span class="ico">✈️</span><h3>Frais de mission — 4 ans</h3></div><div class="sec-body">${types.map(t=>renderType(t)).join('')}<div class="legend"><div class="leg-item"><div class="leg-dot" style="background:#1351A8"></div>Transport</div><div class="leg-item"><div class="leg-dot" style="background:#C05A00"></div>Hébergement</div><div class="leg-item"><div class="leg-dot" style="background:#1A6B3C"></div>Repas</div></div>${renderCmt(cm)}</div></div>`;
+  return`<div class="section full"><div class="sec-hdr"><span class="ico">✈️</span><h3>Frais de mission — 4 ans</h3></div><div class="sec-body">${types.map(t=>renderType(t)).join('')}<div class="legend"><div class="leg-item"><div class="leg-dot" style="background:#1351A8"></div>Transport</div><div class="leg-item"><div class="leg-dot" style="background:#C05A00"></div>Hébergement</div><div class="leg-item"><div class="leg-dot" style="background:#1A6B3C"></div>Repas</div></div>${renderCmt(cm,'fraisMission',id)}</div></div>`;
 }
 function renderDRBlock(drs,indicateur){
   if(!drs.length) return '';
@@ -1642,10 +1707,157 @@ function renderDRBlock(drs,indicateur){
   return`<div class="dr-toggle" onclick="toggleDR('${uid}')">▶ Détail par Direction Régionale (${drs.length})</div><div class="dr-list" id="${uid}">${drContent}</div>`;
 }
 function toggleDR(uid){const el=document.getElementById(uid);const tog=el.previousElementSibling;el.classList.toggle('open');tog.textContent=(el.classList.contains('open')?'▼':'▶')+tog.textContent.slice(1);}
-function renderCmt(cm){const txt=cm?cm[CFG.c.CM.txt]:'';return`<div class="comment-zone"><div class="comment-label">💬 Commentaire</div><div class="comment-text">${txt||'<span class="comment-empty">Aucun commentaire.</span>'}</div></div>`;}
-function secEmpty(ico,titre,cm,cls=''){return`<div class="section ${cls}"><div class="sec-hdr"><span class="ico">${ico}</span><h3>${titre}</h3></div><div class="sec-body"><div class="no-data">Aucune donnée.</div>${renderCmt(cm)}</div></div>`;}
+function renderCmt(cm, bloc, structId) {
+  const txt = cm ? cm[CFG.c.CM.txt] : '';
+  const cmId = cm ? cm.id : null;
+  const uid = 'cmt-' + bloc + '-' + (structId||0);
+  const canEdit = typeof grist !== 'undefined' && typeof grist.docApi !== 'undefined';
+  const editBtn = canEdit
+    ? `<button class="edit-btn" onclick="toggleEdit('${uid}')" title="Modifier">✏️</button>`
+    : '';
+  return `<div class="comment-zone">
+    <div class="comment-label"><span>💬 Commentaire</span>${editBtn}</div>
+    <div class="comment-text" id="${uid}-text">${txt||'<span class="comment-empty">Aucun commentaire.</span>'}</div>
+    <div class="edit-zone" id="${uid}-zone">
+      <textarea class="edit-textarea" id="${uid}-ta" rows="3">${txt||''}</textarea>
+      <div class="edit-actions">
+        <button class="btn-save" onclick="saveComment('${uid}','${bloc}',${structId},${cmId})">💾 Enregistrer</button>
+        <button class="btn-cancel-edit" onclick="toggleEdit('${uid}')">Annuler</button>
+        <span class="save-msg" id="${uid}-msg">✅ Sauvegardé</span>
+      </div>
+    </div>
+  </div>`;
+}
+function secEmpty(ico,titre,cm,cls='',bloc=''){return`<div class="section ${cls}"><div class="sec-hdr"><span class="ico">${ico}</span><h3>${titre}</h3></div><div class="sec-body"><div class="no-data">Aucune donnée.</div>${renderCmt(cm,bloc,_curId)}</div></div>`;}
 
 /* utilitaires — voir définitions en tête de script */
+
+/* ════════════════════════════════════════════════════
+   ÉDITION INLINE — commentaires et points d'attention
+════════════════════════════════════════════════════ */
+
+function toggleEdit(uid) {
+  const zone = document.getElementById(uid + '-zone');
+  if (!zone) return;
+  zone.classList.toggle('open');
+  if (zone.classList.contains('open')) {
+    const ta = document.getElementById(uid + '-ta');
+    if (ta) ta.focus();
+  }
+}
+
+function toggleAttnEdit() {
+  const zone = document.getElementById('attn-edit-zone');
+  if (zone) zone.classList.toggle('open');
+}
+
+async function saveComment(uid, bloc, structId, cmId) {
+  const ta  = document.getElementById(uid + '-ta');
+  const msg = document.getElementById(uid + '-msg');
+  const btn = document.querySelector(`#${uid}-zone .btn-save`);
+  if (!ta) return;
+  const newTxt = ta.value.trim();
+  if (btn) btn.disabled = true;
+
+  try {
+    if (!grist || !grist.docApi) throw new Error('docApi non disponible');
+    const tableName = CFG.tables.commentaires;
+
+    if (cmId && cmId !== 'null') {
+      // Mise à jour de la ligne existante
+      await grist.docApi.applyUserActions([
+        ['UpdateRecord', tableName, parseInt(cmId), { [CFG.c.CM.txt]: newTxt }]
+      ]);
+    } else {
+      // Création d'une nouvelle ligne
+      await grist.docApi.applyUserActions([
+        ['AddRecord', tableName, null, {
+          [CFG.c.CM.struct]: structId,
+          [CFG.c.CM.bloc]:   bloc,
+          [CFG.c.CM.txt]:    newTxt
+        }]
+      ]);
+    }
+
+    // Mettre à jour l'affichage sans recharger toute la fiche
+    const display = document.getElementById(uid + '-text');
+    if (display) display.innerHTML = newTxt || '<span class="comment-empty">Aucun commentaire.</span>';
+
+    // Mettre à jour D.commentaires en mémoire
+    const idx = (D.commentaires || []).findIndex(r => r.id == cmId);
+    if (idx >= 0) D.commentaires[idx][CFG.c.CM.txt] = newTxt;
+    else if (structId) D.commentaires = (D.commentaires||[]).concat([{
+      id: Date.now(), [CFG.c.CM.struct]: structId, [CFG.c.CM.bloc]: bloc, [CFG.c.CM.txt]: newTxt
+    }]);
+
+    if (msg) { msg.classList.add('show'); setTimeout(() => msg.classList.remove('show'), 2500); }
+    toggleEdit(uid);
+  } catch(e) {
+    alert('Erreur lors de la sauvegarde : ' + (e.message || e));
+  }
+  if (btn) btn.disabled = false;
+}
+
+async function savePointsAttn(cmId) {
+  const taTxt      = document.getElementById('attn-ta-txt');
+  const taChantiers= document.getElementById('attn-ta-chantiers');
+  const msg        = document.getElementById('attn-save-msg');
+  const btn        = document.querySelector('#attn-edit-zone .btn-save');
+  if (!taTxt || !taChantiers) return;
+  if (btn) btn.disabled = true;
+
+  const newTxt = taTxt.value.trim();
+  const newChantiers = taChantiers.value.split('\n').map(l => l.trim()).filter(Boolean);
+
+  try {
+    if (!grist || !grist.docApi) throw new Error('docApi non disponible');
+    const tableName = CFG.tables.commentaires;
+    const actions = [];
+
+    // Sauvegarder le texte de synthèse
+    if (cmId && cmId !== 'null') {
+      actions.push(['UpdateRecord', tableName, parseInt(cmId), { [CFG.c.CM.txt]: newTxt }]);
+    } else {
+      actions.push(['AddRecord', tableName, null, {
+        [CFG.c.CM.struct]: _curId, [CFG.c.CM.bloc]: 'pointsAttention', [CFG.c.CM.txt]: newTxt
+      }]);
+    }
+
+    // Supprimer les anciens chantiers et recréer
+    const oldChantiers = (D.commentaires||[]).filter(r =>
+      r[CFG.c.CM.struct] == _curId && r[CFG.c.CM.bloc] === 'chantier');
+    oldChantiers.forEach(r => actions.push(['RemoveRecord', tableName, r.id]));
+    newChantiers.forEach(ch => actions.push(['AddRecord', tableName, null, {
+      [CFG.c.CM.struct]: _curId, [CFG.c.CM.bloc]: 'chantier', [CFG.c.CM.txt]: ch
+    }]));
+
+    await grist.docApi.applyUserActions(actions);
+
+    // Mettre à jour l'affichage
+    document.getElementById('attn-display').innerHTML = newTxt || '<em style="color:#9A7A20">Aucun point d&#39;attention.</em>';
+    const listEl = document.getElementById('attn-chantiers-list');
+    if (listEl) listEl.innerHTML = newChantiers.map(ch =>
+      '<span class="chantier-pill">&#128295; ' + ch + '</span>').join('') ||
+      '<span style="font-size:10.5px;color:#9A7A20;font-style:italic">Aucun chantier.</span>';
+
+    // Mettre à jour D.commentaires en mémoire
+    D.commentaires = (D.commentaires||[]).filter(r =>
+      !(r[CFG.c.CM.struct] == _curId && r[CFG.c.CM.bloc] === 'chantier'));
+    if (cmId && cmId !== 'null') {
+      const idx = D.commentaires.findIndex(r => r.id == cmId);
+      if (idx >= 0) D.commentaires[idx][CFG.c.CM.txt] = newTxt;
+    }
+    newChantiers.forEach((ch, i) => D.commentaires.push({
+      id: Date.now()+i, [CFG.c.CM.struct]: _curId, [CFG.c.CM.bloc]: 'chantier', [CFG.c.CM.txt]: ch
+    }));
+
+    if (msg) { msg.classList.add('show'); setTimeout(() => msg.classList.remove('show'), 2500); }
+    toggleAttnEdit();
+  } catch(e) {
+    alert('Erreur : ' + (e.message || String(e)));
+  }
+  if (btn) btn.disabled = false;
+}
 
 
 /* ═══════════════════════════════════════════════════════
