@@ -1096,6 +1096,7 @@ function loadDemo(){
 function build(){
   document.getElementById('loading').style.display='none';
   buildDropdown();
+  _fBySigle=null; _fById=null; // reconstruire index
   buildQuickNav();
   buildYearBar();
   buildPdfMultiList();
@@ -1110,13 +1111,38 @@ function build(){
   if(first) selectStructure(first.id);
 }
 
+/* Index par Sigle pour la fiche (reconstruit à chaque chargement) */
+var _fBySigle=null, _fById=null;
+function fBuildIdx(){
+  _fBySigle={}; _fById={};
+  (D.structures||[]).forEach(function(s){
+    _fById[s.id]=s;
+    var sg=strVal(s[CFG.c.S.sigle]||'').trim();
+    if(sg) _fBySigle[sg]=s;
+  });
+}
+function fParentSigle(s){
+  var raw=strVal(s[CFG.c.S.parent]||'').trim();
+  if(!raw) return '';
+  // id numérique → chercher le sigle
+  var asId=parseInt(raw);
+  if(!isNaN(asId)&&_fById&&_fById[asId]) return strVal(_fById[asId][CFG.c.S.sigle]||'').trim();
+  return raw; // déjà un sigle texte
+}
+function fEnfantsDR(s){
+  if(!_fBySigle) fBuildIdx();
+  var sigle=strVal(s[CFG.c.S.sigle]||'').trim();
+  if(!sigle) return [];
+  return (D.structures||[]).filter(function(r){
+    return strVal(r[CFG.c.S.type])==='DR' && strVal(r[CFG.c.S.parent]||'').trim()===sigle;
+  });
+}
+
 function selectorStructures(){
-  // Siège, DI, SCN visibles dans le sélecteur (pas les DR)
-  // Grist peut renvoyer Type comme ["L","Siège"] — strVal() extrait la valeur
-  // Types acceptés : 'Siège' (Grist) ET 'SIEGE' (historique) + 'DI' + 'SCN'
-  const TYPES_OK=['Siège','SIEGE','siège','DI','SCN'];
+  if(!_fBySigle) fBuildIdx();
+  const TYPES_OK=new Set(['Siège','SIEGE','siège','DI','SCN','DR']);
   return (D.structures||[]).filter(function(s){
-    return TYPES_OK.includes(strVal(s[CFG.c.S.type]));
+    return TYPES_OK.has(strVal(s[CFG.c.S.type]));
   });
 }
 
