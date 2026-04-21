@@ -688,73 +688,6 @@ function renderTab(tab){
 }
 
 /* ════════ ORDRE STRUCTURES ════════ */
-/* ── Résolution hiérarchie par Sigle (table Structures) ──
-   Parent référence le Sigle de la structure parente, pas son id.
-   Types valides : 'Siège', 'DI', 'DR', 'SCN'
-   DR autonomes (Réunion, Mayotte, NC, Polynésie) : pas de parent DI */
-function ordered(){
-  const s=D.structures||[];
-  const TYPE_SIEGE=['Siège','SIEGE','siège'];  // tolérant aux variantes
-  const bySigle={};
-  s.forEach(function(x){ if(x.Sigle) bySigle[strVal(x.Sigle)]=x; });
-
-  const out=[];
-  const seen=new Set();
-
-  function push(x){ if(!seen.has(x.id)){ seen.add(x.id); out.push(x); } }
-
-  // 1. Siège
-  s.filter(x=>TYPE_SIEGE.includes(strVal(x.Type))).forEach(push);
-
-  // 2. DI → DR filles (parent = Sigle de la DI)
-  s.filter(x=>strVal(x.Type)==='DI').forEach(function(di){
-    push(di);
-    const sigleDI=strVal(di.Sigle||di.sigle||'');
-    // DR dont Parent = sigle de cette DI
-    s.filter(function(r){
-      return strVal(r.Type)==='DR' && strVal(r.Parent||r.parent||'')=== sigleDI;
-    }).forEach(push);
-  });
-
-  // 3. DR autonomes (Parent vide ou référence une autre DR)
-  s.filter(function(x){
-    return strVal(x.Type)==='DR' && !seen.has(x.id);
-  }).forEach(push);
-
-  // 4. SCN
-  s.filter(x=>strVal(x.Type)==='SCN').forEach(push);
-
-  return out;
-}
-
-/* Retourne les DR filles d'une DI (par sigle) */
-function drFilles(di){
-  const sigleDI=strVal(di.Sigle||di.sigle||'');
-  if(!sigleDI) return [];
-  return (D.structures||[]).filter(function(r){
-    return strVal(r.Type)==='DR' && strVal(r.Parent||r.parent||'')===sigleDI;
-  });
-}
-
-/* Consolide une valeur numérique : valeur propre + somme des filles */
-function consolide(structId, dataArr, colStruct, colVal){
-  var propre=0, filles=0;
-  var di=(D.structures||[]).find(function(s){ return s.id===structId; });
-  if(!di) return {propre:0, filles:0, total:0};
-
-  // Valeur propre de la DI
-  var rowPropre=dataArr.find(function(r){ return n(r[colStruct])===structId; });
-  if(rowPropre) propre=n(rowPropre[colVal]);
-
-  // Somme des DR filles
-  drFilles(di).forEach(function(dr){
-    var rowDR=dataArr.find(function(r){ return n(r[colStruct])===dr.id; });
-    if(rowDR) filles+=n(rowDR[colVal]);
-  });
-
-  return {propre:propre, filles:filles, total:propre+filles};
-}
-
 /* ════════ TAB BUDGET ════════ */
 function tabBudget(){
   const c=CFG.c.B, structs=ordered(), bud=fA(D.budget||[]);
@@ -861,67 +794,93 @@ function tabBudget(){
 
 /* ════════ TAB RH ════════ */
 function tabRH(){
-  const c=CFG.c.RH, structs=ordered(), rhs=fA(D.rh||[]);
-  const TYPE_SIEGE=['Siège','siège','SIEGE'];
+  const c=CFG.c.RH, rhs=fA(D.rh||[]);
+  const structs=ordered();
   if(!_bySigle) buildIdx();
+  const TS=['Siège','siège','SIEGE'];
 
-  // Ligne DGDDI = total global
-  function etptConso(s){
-    return Math.round(consoVal(s,rhs,c.struct,function(r){return n(r[c.etpt_tot])||n(r[c.etpt_su])+n(r[c.etpt_agco]);}));
+  /* Consolider un indicateur numérique pour s + tous ses descendants */
+  function cv(s,col){
+    return [s].concat(descendantsDe(s)).reduce(function(tot,d){
+      var row=rhs.find(function(r){return n(r[c.struct])===d.id;});
+      return tot+(row?n(row[col]):0);
+    },0);
   }
-  function msConso(s){ return Math.ceil(consoVal(s,rhs,c.struct,function(r){return n(r[c.ms]);})); }
 
-  const totEtpt=rhs.reduce(function(s,r){return s+Math.round(n(r[c.etpt_tot])||n(r[c.etpt_su])+n(r[c.etpt_agco]));},0);
+  /* Totaux globaux (toutes structures confondues, sans double-comptage) */
+  const totEtpt=Math.round(rhs.reduce(function(s,r){return s+n(r[c.etpt_tot]);},0));
   const totMS=Math.ceil(rhs.reduce(function(s,r){return s+n(r[c.ms]);},0));
   const totAbs=rhs.reduce(function(s,r){return s+n(r[c.abs]);},0);
-  const agesVals=rhs.filter(function(r){return n(r[c.age])>0;}).map(function(r){return n(r[c.age]);});
-  const ageMoy=agesVals.length?(agesVals.reduce(function(a,b){return a+b;},0)/agesVals.length).toFixed(1):0;
 
   const rows=structs.map(function(s){
     const typeS=strVal(s.Type||s.type||'');
     const sigle=strVal(s.Sigle||s.sigle||'').trim();
     const isRoot=sigle===HIER.SIGLE_RACINE;
-    const isDI=typeS==='DI', isSiege=TYPE_SIEGE.includes(typeS), isSCN=typeS==='SCN', isDR=typeS==='DR';
+    const isDI=typeS==='DI', isSiege=TS.includes(typeS), isDR=typeS==='DR', isSCN=typeS==='SCN';
     const isAutre=typeS==='Autre';
-    if(isAutre&&!isRoot) return ''; // filles Autre non affichées séparément
+    // Les Autre ne s'affichent pas séparément (intégrés dans la DI/Siège parente)
+    if(isAutre&&!isRoot) return '';
 
-    const rPropre=rhs.find(function(r){return n(r[c.struct])===s.id;});
-    const etptTot=isRoot||isDI||isSiege ? etptConso(s) : Math.round(n(rPropre?rPropre[c.etpt_tot]||n(rPropre[c.etpt_su])+n(rPropre[c.etpt_agco]):0));
-    const msVal=isRoot||isDI||isSiege ? msConso(s) : Math.ceil(n(rPropre?rPropre[c.ms]:0));
-    const jf=rPropre?n(rPropre[c.jf]):0;
-    const abs=rPropre?n(rPropre[c.abs]):0;
-    const age=rPropre?n(rPropre[c.age]):0;
-    const cib=isDI||isSiege?n(rPropre?rPropre[c.cib]:0):null;
+    // Données propres de cette structure
+    const own=rhs.find(function(r){return n(r[c.struct])===s.id;});
 
-    if(!rPropre&&!isRoot&&etptTot===0) return `<tr class="r-${typeS}"><td><span class="badge b-${typeS}">${typeS}</span> ${s.Nom||s.nom}</td><td colspan="6" class="tc" style="color:var(--gris3)">—</td></tr>`;
+    // ETPT : consolidé pour DI/Siège/racine, détaillé (AGCO+SU) pour DR/SCN
+    let etptAgco, etptSu, etptTot;
+    if(isRoot||isDI||isSiege){
+      // Somme de tous les descendants
+      etptAgco=Math.round(cv(s,c.etpt_agco));
+      etptSu  =Math.round(cv(s,c.etpt_su));
+      etptTot =Math.round(cv(s,c.etpt_tot)||etptAgco+etptSu);
+    } else {
+      etptAgco=own?Math.round(n(own[c.etpt_agco])):null;
+      etptSu  =own?Math.round(n(own[c.etpt_su])):null;
+      etptTot =own?Math.round(n(own[c.etpt_tot])||etptAgco+etptSu):null;
+    }
+
+    const ms=isRoot||isDI||isSiege ? Math.ceil(cv(s,c.ms)) : (own&&(isDR||isSCN)?Math.ceil(n(own[c.ms])):null);
+    const cib=(isDI||isSiege)?n(own?own[c.cib]:0):null;
+    const jf=own?n(own[c.jf]):null;
+    const abs=own?n(own[c.abs]):null;
+    const age=own?n(own[c.age]):null;
+
+    // Masquer ligne si vraiment rien
+    if(!isRoot&&etptTot===0&&!etptAgco&&!ms) return '';
 
     const bold=isRoot||isDI||isSiege?'font-weight:700':'font-weight:400';
-    const ndesc=isRoot||isDI||isSiege?descendantsDe(s).length:0;
-    const tag=ndesc?`<span style="font-size:9px;color:var(--gris3);margin-left:4px;">(${ndesc})</span>`:'';
     const bg=isRoot?'style="background:var(--bleu-pale)"':'';
+    const ndesc=isRoot||isDI||isSiege?descendantsDe(s).filter(function(d){return rhs.some(function(r){return n(r[c.struct])===d.id;});}).length:0;
+    const tag=ndesc?'<span style="font-size:9px;color:var(--gris3);margin-left:3px;">('+ndesc+')</span>':'';
 
-    return `<tr class="r-${typeS}" ${bg}>
-      <td style="${bold}"><span class="badge b-${typeS}">${typeS}</span> ${s.Nom||s.nom}${tag}</td>
-      <td class="tr">${etptTot||'—'}</td>
-      <td class="tr">${cib!==null?cib||'—':'—'}</td>
-      <td class="tr">${isDI||isDR||isSiege||isRoot?fmt(msVal)+' €':'—'}</td>
-      <td class="tr">${jf?jf.toFixed(1)+' j':'—'}</td>
-      <td class="tr">${abs||'—'}</td>
-      <td class="tr">${age?age.toFixed(1)+' ans':'—'}</td>
-    </tr>`;
-  }).join('');
+    const fmtEtpt=function(v){return v!==null&&v>0?v:'—';};
+
+    return '<tr class="r-'+typeS+'" '+bg+'>'
+      +'<td style="'+bold+'"><span class="badge b-'+typeS+'">'+typeS+'</span> '+(s.Nom||s.nom)+tag+'</td>'
+      +'<td class="tr">'+fmtEtpt(etptAgco)+'</td>'
+      +'<td class="tr">'+fmtEtpt(etptSu)+'</td>'
+      +'<td class="tr" style="font-weight:700">'+fmtEtpt(etptTot)+'</td>'
+      +'<td class="tr">'+(cib!==null?cib||'—':'—')+'</td>'
+      +'<td class="tr">'+(ms!==null?fmt(ms)+' €':'—')+'</td>'
+      +'<td class="tr">'+(jf!==null&&jf?jf.toFixed(1)+' j':'—')+'</td>'
+      +'<td class="tr">'+(abs!==null&&abs?abs:'—')+'</td>'
+      +'<td class="tr">'+(age!==null&&age?age.toFixed(1)+' ans':'—')+'</td>'
+      +'</tr>';
+  }).filter(Boolean).join('');
 
   return `
   <div class="kpi-global">
     <div class="kg-card"><div class="kg-val">${totEtpt}</div><div class="kg-lbl">ETPT total réseau</div></div>
     <div class="kg-card vert"><div class="kg-val" style="font-size:18px">${fmt(totMS)} €</div><div class="kg-lbl">Masse salariale totale</div></div>
     <div class="kg-card orange"><div class="kg-val">${totAbs}</div><div class="kg-lbl">J. absentéisme</div></div>
-    <div class="kg-card"><div class="kg-val">${ageMoy}</div><div class="kg-lbl">Âge moyen global</div></div>
   </div>
   <div class="twrap">
     <div class="twrap-title">👥 Situation RH — ${_anneeC}</div>
     <div class="tscroll"><table class="ct">
-      <thead><tr><th>Structure</th><th class="tr">ETPT total</th><th class="tr">Eff. cibles</th><th class="tr">Masse salariale</th><th class="tr">J. form./agent</th><th class="tr">Absentéisme</th><th class="tr">Âge moyen</th></tr></thead>
+      <thead><tr>
+        <th>Structure</th>
+        <th class="tr">ETPT AGCO</th><th class="tr">ETPT SU</th><th class="tr">ETPT Total</th>
+        <th class="tr">Eff. cibles</th><th class="tr">Masse sal.</th>
+        <th class="tr">J. form./agent</th><th class="tr">Absentéisme</th><th class="tr">Âge moyen</th>
+      </tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
   </div>`;
