@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8"><!-- upd-1776757093 -->
+<meta charset="UTF-8"><!-- upd-1776768626 -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Consolidation Globale — Indicateurs de gestion</title>
 <style>
@@ -267,6 +267,10 @@ body{font-family:'Cabin',sans-serif;background:#F2F5FA;color:var(--gris1);font-s
   <div class="tab"         onclick="show('fraisMission',this)">✈️ Frais de mission</div>
 </div>
 
+<div id="year-bar-conso" style="background:#fff;border-bottom:1px solid var(--bord);padding:7px 18px;display:flex;align-items:center;gap:8px;display:none;">
+  <span style="font-size:10.5px;color:var(--gris2);font-weight:700;flex-shrink:0;">Année :</span>
+  <div id="year-btns-conso" style="display:flex;gap:6px;"></div>
+</div>
 <div id="content">
   <div id="loading"><div class="spin"></div><span>Chargement…</span></div>
   <div id="tab-content" style="display:none;"></div>
@@ -295,7 +299,7 @@ const CFG={
     MO:{vet_n:'TauxVetusteMoyenNational',vpa_n:'VehiculesMoyenNational',age_n:'AgeMoyenNational',abs_n:'AbsenteismeMoyenNational',jf_n:'JoursFormationMoyenNational',cae_n:'ConsoAEMoyenNational',ccp_n:'ConsoCPMoyenNational',annee:'Annee'}
   }
 };
-let D={}, curTab='budget';
+let D={}, curTab='budget', _anneeC=2026;
 
 /* ════════ GRIST — INITIALISATION MULTI-MÉTHODES ════════ */
 
@@ -465,10 +469,45 @@ function loadDemo(){
   init();
 }
 
+/* ════════ FILTRE ANNÉE ════════ */
+function getAnneesC(){
+  var sets=new Set();
+  ['budget','rh','contentieux','vehicules','fraisMission'].forEach(function(k){
+    (D[k]||[]).forEach(function(r){ var a=Number(r.Annee||r.annee||0); if(a>2000) sets.add(a); });
+  });
+  return [...sets].sort(function(a,b){return b-a;});
+}
+function buildYearBarConso(){
+  var annees=getAnneesC();
+  var bar=document.getElementById('year-btns-conso');
+  var wrap=document.getElementById('year-bar-conso');
+  if(!bar||!annees.length){ if(wrap) wrap.style.display='none'; return; }
+  wrap.style.display='flex';
+  if(!annees.includes(_anneeC)) _anneeC=annees[0]||2026;
+  bar.innerHTML=annees.map(function(a){
+    var act=a===_anneeC;
+    return '<button onclick="setAnneeC('+a+')" style="padding:3px 14px;border-radius:20px;font-size:11.5px;font-weight:700;cursor:pointer;transition:all .15s;border:1.5px solid '+(act?'var(--rep)':'var(--bord)')+';background:'+(act?'var(--rep)':'#fff')+';color:'+(act?'#fff':'var(--gris2)')+';">'+a+'</button>';
+  }).join('');
+}
+function setAnneeC(a){ _anneeC=a; buildYearBarConso(); renderTab(curTab); }
+/* Filtre les lignes par année sélectionnée — retourne uniquement les lignes de _anneeC */
+function fA(rows, col){
+  col=col||'Annee';
+  if(!rows||!rows.length) return rows;
+  var avecAnnee=rows.filter(function(r){ return Number(r[col])>0; });
+  if(!avecAnnee.length) return rows;
+  var filtre=avecAnnee.filter(function(r){ return Number(r[col])===_anneeC; });
+  return filtre.length?filtre:avecAnnee.filter(function(r){
+    var max=Math.max.apply(null,avecAnnee.map(function(x){return Number(x[col]);}));
+    return Number(r[col])===max;
+  });
+}
+
 /* ════════ INIT ════════ */
 function init(){
   document.getElementById('loading').style.display='none';
   document.getElementById('tab-content').style.display='block';
+  buildYearBarConso();
   renderTab(curTab);
 }
 function show(tab,el){
@@ -488,21 +527,76 @@ function renderTab(tab){
 }
 
 /* ════════ ORDRE STRUCTURES ════════ */
+/* ── Résolution hiérarchie par Sigle (table Structures) ──
+   Parent référence le Sigle de la structure parente, pas son id.
+   Types valides : 'Siège', 'DI', 'DR', 'SCN'
+   DR autonomes (Réunion, Mayotte, NC, Polynésie) : pas de parent DI */
 function ordered(){
   const s=D.structures||[];
+  const TYPE_SIEGE=['Siège','SIEGE','siège'];  // tolérant aux variantes
+  const bySigle={};
+  s.forEach(function(x){ if(x.Sigle) bySigle[strVal(x.Sigle)]=x; });
+
   const out=[];
-  s.filter(x=>x.Type==='SIEGE').forEach(x=>out.push(x));
-  s.filter(x=>x.Type==='DI').forEach(di=>{
-    out.push(di);
-    s.filter(r=>r.Type==='DR'&&r.Parent==di.id).forEach(dr=>out.push(dr));
+  const seen=new Set();
+
+  function push(x){ if(!seen.has(x.id)){ seen.add(x.id); out.push(x); } }
+
+  // 1. Siège
+  s.filter(x=>TYPE_SIEGE.includes(strVal(x.Type))).forEach(push);
+
+  // 2. DI → DR filles (parent = Sigle de la DI)
+  s.filter(x=>strVal(x.Type)==='DI').forEach(function(di){
+    push(di);
+    const sigleDI=strVal(di.Sigle||di.sigle||'');
+    // DR dont Parent = sigle de cette DI
+    s.filter(function(r){
+      return strVal(r.Type)==='DR' && strVal(r.Parent||r.parent||'')=== sigleDI;
+    }).forEach(push);
   });
-  s.filter(x=>x.Type==='SCN').forEach(x=>out.push(x));
+
+  // 3. DR autonomes (Parent vide ou référence une autre DR)
+  s.filter(function(x){
+    return strVal(x.Type)==='DR' && !seen.has(x.id);
+  }).forEach(push);
+
+  // 4. SCN
+  s.filter(x=>strVal(x.Type)==='SCN').forEach(push);
+
   return out;
+}
+
+/* Retourne les DR filles d'une DI (par sigle) */
+function drFilles(di){
+  const sigleDI=strVal(di.Sigle||di.sigle||'');
+  if(!sigleDI) return [];
+  return (D.structures||[]).filter(function(r){
+    return strVal(r.Type)==='DR' && strVal(r.Parent||r.parent||'')===sigleDI;
+  });
+}
+
+/* Consolide une valeur numérique : valeur propre + somme des filles */
+function consolide(structId, dataArr, colStruct, colVal){
+  var propre=0, filles=0;
+  var di=(D.structures||[]).find(function(s){ return s.id===structId; });
+  if(!di) return {propre:0, filles:0, total:0};
+
+  // Valeur propre de la DI
+  var rowPropre=dataArr.find(function(r){ return n(r[colStruct])===structId; });
+  if(rowPropre) propre=n(rowPropre[colVal]);
+
+  // Somme des DR filles
+  drFilles(di).forEach(function(dr){
+    var rowDR=dataArr.find(function(r){ return n(r[colStruct])===dr.id; });
+    if(rowDR) filles+=n(rowDR[colVal]);
+  });
+
+  return {propre:propre, filles:filles, total:propre+filles};
 }
 
 /* ════════ TAB BUDGET ════════ */
 function tabBudget(){
-  const c=CFG.c.B, structs=ordered(), bud=D.budget||[];
+  const c=CFG.c.B, structs=ordered(), bud=fA(D.budget||[]);
   const types=['Fonctionnement','Investissement','Intervention'];
 
   // KPI globaux — AE + CP toutes structures, année courante
@@ -601,70 +695,110 @@ function tabBudget(){
 
 /* ════════ TAB RH ════════ */
 function tabRH(){
-  const c=CFG.c.RH, structs=ordered(), rhs=D.rh||[];
-  let totR=0,totC=0,totMS=0;
-  rhs.forEach(r=>{totR+=n(r[c.etpt_tot])||n(r[c.rem]||0);totC+=n(r[c.cib]);totMS+=n(r[c.ms]);});
-  const pct=totC?Math.round(totR/totC*100):0;
-  const ageMoy=rhs.length?(rhs.reduce((s,r)=>s+n(r[c.age]),0)/rhs.length).toFixed(1):0;
-  const totAbs=rhs.reduce((s,r)=>s+n(r[c.abs]),0);
+  const c=CFG.c.RH, structs=ordered(), rhs=fA(D.rh||[]);
+
+  // Totaux globaux
+  let totEtpt=0,totMS=0,totAbs=0,totAge=0,totAgeN=0;
+  rhs.forEach(r=>{
+    totEtpt+=Math.round(n(r[c.etpt_tot])||n(r[c.etpt_su])+n(r[c.etpt_agco]));
+    totMS+=n(r[c.ms]); totAbs+=n(r[c.abs]);
+    if(n(r[c.age])>0){totAge+=n(r[c.age]);totAgeN++;}
+  });
+  totMS=Math.ceil(totMS);
+  const ageMoy=totAgeN?(totAge/totAgeN).toFixed(1):0;
+
+  const TYPE_SIEGE=['Siège','SIEGE'];
 
   const rows=structs.map(s=>{
-    const r=rhs.find(x=>x[c.struct]==s.id);
-    if(!r) return `<tr class="r-${s.Type}"><td><span class="badge b-${s.Type}">${s.Type}</span> ${s[CFG.c.S.nom]}</td><td colspan="7" class="tc" style="color:var(--gris3)">—</td></tr>`;
-    const etptSu=n(r[c.etpt_su]),etptAgco=n(r[c.etpt_agco]),etptTot=n(r[c.etpt_tot])||etptSu+etptAgco;
-    const cib=n(r[c.cib]);
-    const typeS=s[CFG.c.S.type];
-    return `<tr class="r-${s.Type}">
-      <td><span class="badge b-${s.Type}">${s.Type}</span> ${s[CFG.c.S.nom]}</td>
-      <td class="tr">${etptAgco||'—'}</td><td class="tr">${etptSu||'—'}</td><td class="tr font-bold">${etptTot}</td>
-      <td class="tr">${['DI','SIEGE'].includes(typeS)?cib:'—'}</td>
-      <td class="tr">${['DI','DR','SIEGE'].includes(typeS)?fmt(n(r[c.ms]))+' €':'—'}</td>
-      <td class="tr">${n(r[c.jf]).toFixed(1)} j</td>
-      <td class="tr">${n(r[c.abs])} j</td>
-      <td class="tr">${n(r[c.age]).toFixed(1)} ans</td>
+    const typeS=strVal(s.Type||s.type||'');
+    const isDI=typeS==='DI', isSiege=TYPE_SIEGE.includes(typeS), isSCN=typeS==='SCN', isDR=typeS==='DR';
+    const rPropre=rhs.find(x=>n(x[c.struct])===s.id);
+    const filles=isDI||isSiege ? drFilles(s).map(dr=>rhs.find(x=>n(x[c.struct])===dr.id)).filter(Boolean) : [];
+
+    // ETPT
+    const etptPropre=rPropre?Math.round(n(rPropre[c.etpt_tot])||n(rPropre[c.etpt_su])+n(rPropre[c.etpt_agco])):0;
+    const etptFilles=filles.reduce((s,r)=>s+Math.round(n(r[c.etpt_tot])||n(r[c.etpt_su])+n(r[c.etpt_agco])),0);
+    const etptTotal=(isDI||isSiege)?etptPropre+etptFilles:etptPropre;
+
+    // MS
+    const msPropre=rPropre?Math.ceil(n(rPropre[c.ms])):0;
+    const msFilles=filles.reduce((s,r)=>s+n(r[c.ms]),0);
+    const msTotal=(isDI||isSiege)?Math.ceil(msPropre+msFilles):msPropre;
+
+    const cib=(isDI||isSiege)?n(rPropre?rPropre[c.cib]:0):0;
+    const jf=rPropre?n(rPropre[c.jf]):0;
+    const abs=rPropre?n(rPropre[c.abs]):0;
+    const age=rPropre?n(rPropre[c.age]):0;
+
+    if(!rPropre&&!filles.length) return `<tr class="r-${typeS}"><td><span class="badge b-${typeS}">${typeS}</span> ${s.Nom||s.nom}</td><td colspan="8" class="tc" style="color:var(--gris3)">—</td></tr>`;
+
+    // Indicateur consolidation pour DI
+    const consTag=(isDI||isSiege)&&etptFilles>0
+      ?`<span style="font-size:9px;color:var(--gris3);margin-left:4px;">(${etptPropre>0?etptPropre+' propre + ':''} ${etptFilles} DR)</span>`:'';
+
+    return `<tr class="r-${typeS}">
+      <td style="font-weight:${isDI||isSiege?'700':'400'}"><span class="badge b-${typeS}">${typeS}</span> ${s.Nom||s.nom}</td>
+      <td class="tr">${etptTotal>0?etptTotal:'—'}${consTag}</td>
+      <td class="tr">${isDI||isSiege?cib||'—':'—'}</td>
+      <td class="tr">${isDI||isDR||isSiege?fmt(msTotal)+' €':'—'}</td>
+      <td class="tr">${jf?jf.toFixed(1)+' j':'—'}</td>
+      <td class="tr">${abs||'—'}</td>
+      <td class="tr">${age?age.toFixed(1)+' ans':'—'}</td>
     </tr>`;
   }).join('');
 
   return `
   <div class="kpi-global">
-    <div class="kg-card"><div class="kg-val">${totR}</div><div class="kg-lbl">Effectifs rémunérés</div></div>
-    <div class="kg-card"><div class="kg-val">${totC}</div><div class="kg-lbl">Effectifs cibles</div></div>
-    <div class="kg-card vert"><div class="kg-val vert">${pct}%</div><div class="kg-lbl">Taux couverture</div></div>
-    <div class="kg-card"><div class="kg-val" style="font-size:18px">${fmt(totMS)} €</div><div class="kg-lbl">Masse salariale totale</div></div>
-    <div class="kg-card orange"><div class="kg-val orange">${totAbs}</div><div class="kg-lbl">Jours absentéisme</div></div>
+    <div class="kg-card"><div class="kg-val">${Math.round(totEtpt)}</div><div class="kg-lbl">ETPT total réseau</div></div>
+    <div class="kg-card vert"><div class="kg-val" style="font-size:18px">${fmt(totMS)} €</div><div class="kg-lbl">Masse salariale totale</div></div>
+    <div class="kg-card orange"><div class="kg-val">${Math.round(totAbs)}</div><div class="kg-lbl">Jours absentéisme</div></div>
     <div class="kg-card"><div class="kg-val">${ageMoy}</div><div class="kg-lbl">Âge moyen global</div></div>
   </div>
   <div class="twrap">
-    <div class="twrap-title">👥 Situation RH par structure</div>
+    <div class="twrap-title">👥 Situation RH par structure — ${_anneeC}</div>
     <div class="tscroll"><table class="ct">
-      <thead><tr><th>Structure</th><th class="tr">ETPT AGCO</th><th class="tr">ETPT SU</th><th class="tr">ETPT total</th><th class="tr">Eff. cibles</th><th class="tr">Masse salariale</th><th class="tr">J. form./agent</th><th class="tr">Absentéisme</th><th class="tr">Âge moyen</th></tr></thead>
+      <thead><tr><th>Structure</th><th class="tr">ETPT total</th><th class="tr">Eff. cibles</th><th class="tr">Masse salariale</th><th class="tr">J. form./agent</th><th class="tr">Absentéisme</th><th class="tr">Âge moyen</th></tr></thead>
       <tbody>${rows}</tbody>
-      <tfoot><tr><td colspan="3">TOTAL ETPT</td><td class="tr">${totR}</td><td>—</td><td class="tr">${fmt(totMS)} €</td><td>—</td><td class="tr">${totAbs} j</td><td class="tr">${ageMoy} ans</td></tr></tfoot>
+      <tfoot><tr><td>TOTAL</td><td class="tr">${Math.round(totEtpt)}</td><td>—</td><td class="tr">${fmt(totMS)} €</td><td>—</td><td class="tr">${Math.round(totAbs)} j</td><td class="tr">${ageMoy} ans</td></tr></tfoot>
     </table></div>
   </div>`;
 }
 
 /* ════════ TAB CONTENTIEUX ════════ */
 function tabContentieux(){
-  const c=CFG.c.CT, structs=ordered(), ct=D.contentieux||[];
-  const totNb=ct.reduce((s,r)=>s+n(r[c.nb]),0);
+  const c=CFG.c.CT, structs=ordered(), ct=fA(D.contentieux||[]);
+  const TYPE_SIEGE=['Siège','SIEGE'];
+
+  const totNb =ct.reduce((s,r)=>s+n(r[c.nb]),0);
   const totCan=ct.reduce((s,r)=>s+n(r[c.cannabis]),0);
   const totCoc=ct.reduce((s,r)=>s+n(r[c.cocaine]),0);
   const totTab=ct.reduce((s,r)=>s+n(r[c.tabac]),0);
 
   const rows=structs.map(s=>{
-    const r=ct.find(x=>x[c.struct]==s.id);
-    if(!r) return `<tr class="r-${s.Type}"><td><span class="badge b-${s.Type}">${s.Type}</span> ${s[CFG.c.S.nom]}</td><td colspan="4" class="tc" style="color:var(--gris3)">—</td></tr>`;
-    const nb=r[c.nb]||0;
+    const typeS=strVal(s.Type||s.type||'');
+    const isDI=typeS==='DI', isSiege=TYPE_SIEGE.includes(typeS);
+    const rPropre=ct.find(x=>n(x[c.struct])===s.id);
+    const filles=(isDI||isSiege)?drFilles(s).map(dr=>ct.find(x=>n(x[c.struct])===dr.id)).filter(Boolean):[];
+
+    // Consolider
+    const nb  =n(rPropre?rPropre[c.nb]:0)  + filles.reduce((s,r)=>s+n(r[c.nb]),0);
+    const can =n(rPropre?rPropre[c.cannabis]:0)+filles.reduce((s,r)=>s+n(r[c.cannabis]),0);
+    const coc =n(rPropre?rPropre[c.cocaine]:0)+filles.reduce((s,r)=>s+n(r[c.cocaine]),0);
+    const tab =n(rPropre?rPropre[c.tabac]:0)+filles.reduce((s,r)=>s+n(r[c.tabac]),0);
+
+    if(!rPropre&&!filles.length) return `<tr class="r-${typeS}"><td><span class="badge b-${typeS}">${typeS}</span> ${s.Nom||s.nom}</td><td colspan="4" class="tc" style="color:var(--gris3)">—</td></tr>`;
+    if(nb===0&&can===0&&coc===0&&tab===0) return ''; // masquer si tout à 0
+
     const cls=nb>=10?'color:var(--rouge);font-weight:700':nb>=5?'color:var(--orange);font-weight:600':'';
-    return `<tr class="r-${s.Type}">
-      <td><span class="badge b-${s.Type}">${s.Type}</span> ${s[CFG.c.S.nom]}</td>
+    const consTag=(isDI||isSiege)&&filles.length>0?`<span style="font-size:9px;color:var(--gris3);"> (${filles.length} DR)</span>`:'';
+    return `<tr class="r-${typeS}">
+      <td style="font-weight:${isDI||isSiege?'700':'400'}"><span class="badge b-${typeS}">${typeS}</span> ${s.Nom||s.nom}${consTag}</td>
       <td class="tc" style="${cls}">${nb}</td>
-      <td class="tr">${fmtD(r[c.cannabis])} kg</td>
-      <td class="tr">${fmtD(r[c.cocaine])} kg</td>
-      <td class="tr">${fmtD(r[c.tabac])} kg</td>
+      <td class="tr">${fmtD(can)} kg</td>
+      <td class="tr">${fmtD(coc)} kg</td>
+      <td class="tr">${fmtD(tab)} kg</td>
     </tr>`;
-  }).join('');
+  }).filter(Boolean).join('');
 
   return `
   <div class="kpi-global">
@@ -674,7 +808,7 @@ function tabContentieux(){
     <div class="kg-card"><div class="kg-val" style="font-size:18px">${fmtD(totTab)} kg</div><div class="kg-lbl">Tabac saisi</div></div>
   </div>
   <div class="twrap">
-    <div class="twrap-title">⚖️ Contentieux par structure</div>
+    <div class="twrap-title">⚖️ Contentieux par structure — ${_anneeC}</div>
     <table class="ct">
       <thead><tr><th>Structure</th><th class="tc">Nb dossiers</th><th class="tr">Cannabis (kg)</th><th class="tr">Cocaïne (kg)</th><th class="tr">Tabac (kg)</th></tr></thead>
       <tbody>${rows}</tbody>
@@ -685,23 +819,37 @@ function tabContentieux(){
 
 /* ════════ TAB IMMOBILIER ════════ */
 function tabImmobilier(){
-  const c=CFG.c.IM, structs=ordered(), im=D.immobilier||[];
-  const totM2=im.reduce((s,r)=>s+(r[c.m2]||0),0);
+  const c=CFG.c.IM, structs=ordered(), im=D.immobilier||[]; // pas de filtre année
+  const TYPE_SIEGE=['Siège','SIEGE'];
+
+  const totM2=im.reduce((s,r)=>s+n(r[c.m2]),0);
   const bails=im.filter(r=>strVal(r[c.occ])==='Bail privé');
-  const totLoyer=bails.reduce((s,r)=>s+(r[c.loyer]||0),0);
+  const totLoyer=bails.reduce((s,r)=>s+n(r[c.loyer]),0);
 
   const rows=structs.map(s=>{
-    const sites=im.filter(x=>x[c.struct]==s.id);
-    if(!sites.length) return `<tr class="r-${s.Type}"><td><span class="badge b-${s.Type}">${s.Type}</span> ${s[CFG.c.S.nom]}</td><td colspan="5" class="tc" style="color:var(--gris3)">—</td></tr>`;
-    return sites.map((si,i)=>`<tr class="r-${s.Type}">
-      <td style="font-weight:600">${i===0?`<span class="badge b-${s.Type}">${s.Type}</span> ${s[CFG.c.S.nom]}`:'↳'}</td>
-      <td>${si[c.site]}</td>
-      <td><span class="${strVal(si[c.occ])==='Bail privé'?'occ-bail':'occ-pub'}">${strVal(si[c.occ])}</span></td>
-      <td style="font-size:10.5px;color:var(--gris2)">${si[c.adr]}</td>
-      <td class="tr">${fmt(si[c.m2])} m²</td>
-      <td class="tr">${fmt(si[c.cout])} €/m²</td>
-      <td class="tr">${strVal(si[c.occ])==='Bail privé'?fmt(si[c.loyer])+' €':'—'}</td>
-    </tr>`).join('');
+    const typeS=strVal(s.Type||s.type||'');
+    const isDI=typeS==='DI', isSiege=TYPE_SIEGE.includes(typeS);
+    const sites=im.filter(x=>n(x[c.struct])===s.id);
+    const fillesDR=(isDI||isSiege)?drFilles(s):[];
+    const sitesFilles=fillesDR.flatMap(dr=>im.filter(x=>n(x[c.struct])===dr.id));
+    const tousSites=[...sites,...sitesFilles];
+
+    if(!tousSites.length) return `<tr class="r-${typeS}"><td><span class="badge b-${typeS}">${typeS}</span> ${s.Nom||s.nom}</td><td colspan="5" class="tc" style="color:var(--gris3)">—</td></tr>`;
+
+    const m2Total=tousSites.reduce((s,r)=>s+n(r[c.m2]),0);
+    const loyerTotal=tousSites.filter(r=>strVal(r[c.occ])==='Bail privé').reduce((s,r)=>s+n(r[c.loyer]),0);
+    const nbPub=tousSites.filter(r=>strVal(r[c.occ])==='Domaine public').length;
+    const nbBail=tousSites.filter(r=>strVal(r[c.occ])==='Bail privé').length;
+
+    const consTag=(isDI||isSiege)&&fillesDR.length?`<span style="font-size:9px;color:var(--gris3);"> (${fillesDR.length} DR)</span>`:'';
+    return `<tr class="r-${typeS}">
+      <td style="font-weight:${isDI||isSiege?'700':'400'}"><span class="badge b-${typeS}">${typeS}</span> ${s.Nom||s.nom}${consTag}</td>
+      <td class="tr">${tousSites.length}</td>
+      <td class="tr">${nbPub}</td>
+      <td class="tr orange">${nbBail}</td>
+      <td class="tr">${fmt(m2Total)} m²</td>
+      <td class="tr">${loyerTotal?fmt(loyerTotal)+' €':'—'}</td>
+    </tr>`;
   }).join('');
 
   return `
@@ -713,9 +861,9 @@ function tabImmobilier(){
     <div class="kg-card"><div class="kg-val" style="font-size:18px">${fmt(totLoyer)} €</div><div class="kg-lbl">Loyers annuels</div></div>
   </div>
   <div class="twrap">
-    <div class="twrap-title">🏛️ Patrimoine immobilier</div>
+    <div class="twrap-title">🏛️ Patrimoine immobilier consolidé</div>
     <div class="tscroll"><table class="ct">
-      <thead><tr><th>Structure</th><th>Site</th><th>Type</th><th>Adresse</th><th>m²</th><th>Coût/m²</th><th>Loyer annuel</th></tr></thead>
+      <thead><tr><th>Structure</th><th class="tr">Sites</th><th class="tr">Dom. public</th><th class="tr">Baux privés</th><th class="tr">m² totaux</th><th class="tr">Loyers/an</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
   </div>`;
@@ -723,26 +871,41 @@ function tabImmobilier(){
 
 /* ════════ TAB VÉHICULES ════════ */
 function tabVehicules(){
-  const c=CFG.c.VH, structs=ordered(), vh=D.vehicules||[];
+  const c=CFG.c.VH, structs=ordered(), vh=fA(D.vehicules||[]);
+  const TYPE_SIEGE=['Siège','SIEGE'];
+  const moData=(D.moyennes||[])[0]||{};
+  const nat=nPct(moData[CFG.c.MO.vet_n]);
+
   const totVeh=vh.reduce((s,r)=>s+n(r[c.nb]),0);
   const avgVet=vh.length?Math.round(vh.reduce((s,r)=>s+n(r[c.vet_s]),0)/vh.length):0;
-  const moData=(D.moyennes||[])[0]||{}; const nat=nPct(moData[CFG.c.MO.vet_n])||( vh.length?n(vh[0][c.vet_n]):0);
 
   const rows=structs.map(s=>{
-    const r=vh.find(x=>x[c.struct]==s.id);
-    if(!r) return `<tr class="r-${s.Type}"><td><span class="badge b-${s.Type}">${s.Type}</span> ${s[CFG.c.S.nom]}</td><td colspan="5" class="tc" style="color:var(--gris3)">—</td></tr>`;
-    const vs=n(r[c.vet_s]),vn=n(r[c.vet_n]);
-    const ps=n(r[c.vpa_s]).toFixed(2),pn=n(r[c.vpa_n]).toFixed(2);
-    const clsV=vs>vn?'mf-danger':vs>vn*0.8?'mf-warn':'mf-ok';
-    const vsTag=vs>vn?`<span class="vs vs-bad">▲ +${vs-vn} pts</span>`:`<span class="vs vs-ok">▼ -${vn-vs} pts</span>`;
-    const psTag=ps>pn?`<span class="vs vs-bad">▲</span>`:`<span class="vs vs-ok">▼</span>`;
-    return `<tr class="r-${s.Type}">
-      <td><span class="badge b-${s.Type}">${s.Type}</span> ${s[CFG.c.S.nom]}</td>
-      <td class="tr">${r[c.nb]}</td>
-      <td class="tc"><div>${vs}% ${vsTag}</div><div class="mbar"><div class="mfill ${clsV}" style="width:${vs}%"></div></div></td>
-      <td class="tc" style="color:var(--gris3)">${vn}%</td>
-      <td class="tr">${ps} ${psTag}</td>
-      <td class="tr" style="color:var(--gris3)">${pn}</td>
+    const typeS=strVal(s.Type||s.type||'');
+    const isDI=typeS==='DI', isSiege=TYPE_SIEGE.includes(typeS);
+    const rPropre=vh.find(x=>n(x[c.struct])===s.id);
+    const filles=(isDI||isSiege)?drFilles(s).map(dr=>vh.find(x=>n(x[c.struct])===dr.id)).filter(Boolean):[];
+
+    const nbPropre=n(rPropre?rPropre[c.nb]:0);
+    const nbFilles=filles.reduce((s,r)=>s+n(r[c.nb]),0);
+    const nbTotal=(isDI||isSiege)?nbPropre+nbFilles:nbPropre;
+
+    // Vétusté : moyenne pondérée si consolidation
+    let vetTotal=0;
+    if(rPropre) vetTotal=n(rPropre[c.vet_s]);
+    if((isDI||isSiege)&&filles.length){
+      const allVets=[rPropre,...filles].filter(Boolean).map(r=>n(r[c.vet_s]));
+      vetTotal=allVets.length?Math.round(allVets.reduce((a,b)=>a+b,0)/allVets.length):0;
+    }
+
+    if(!rPropre&&!filles.length) return `<tr class="r-${typeS}"><td><span class="badge b-${typeS}">${typeS}</span> ${s.Nom||s.nom}</td><td colspan="3" class="tc" style="color:var(--gris3)">—</td></tr>`;
+
+    const clsV=nat&&vetTotal>nat?'mf-danger':nat&&vetTotal>nat*0.8?'mf-warn':'mf-ok';
+    const consTag=(isDI||isSiege)&&filles.length?`<span style="font-size:9px;color:var(--gris3);"> (${filles.length} DR)</span>`:'';
+    return `<tr class="r-${typeS}">
+      <td style="font-weight:${isDI||isSiege?'700':'400'}"><span class="badge b-${typeS}">${typeS}</span> ${s.Nom||s.nom}${consTag}</td>
+      <td class="tr">${nbTotal||'—'}</td>
+      <td class="tc"><div>${vetTotal}%</div><div class="mbar"><div class="mfill ${clsV}" style="width:${vetTotal}%"></div></div></td>
+      <td class="tc" style="color:var(--gris3)">${nat?nat+'%':'—'}</td>
     </tr>`;
   }).join('');
 
@@ -750,67 +913,70 @@ function tabVehicules(){
   <div class="kpi-global">
     <div class="kg-card"><div class="kg-val">${totVeh}</div><div class="kg-lbl">Véhicules au total</div></div>
     <div class="kg-card ${avgVet>nat?'rouge':'vert'}"><div class="kg-val ${avgVet>nat?'rouge':'vert'}">${avgVet}%</div><div class="kg-lbl">Vétusté moy. réseau</div></div>
-    <div class="kg-card"><div class="kg-val" style="color:var(--gris2)">${nat}%</div><div class="kg-lbl">Référence nationale</div></div>
+    <div class="kg-card"><div class="kg-val" style="color:var(--gris2)">${nat||'—'}%</div><div class="kg-lbl">Référence nationale</div></div>
   </div>
   <div class="twrap">
-    <div class="twrap-title">🚗 Parc de véhicules</div>
+    <div class="twrap-title">🚗 Parc de véhicules — ${_anneeC}</div>
     <div class="tscroll"><table class="ct">
-      <thead><tr>
-        <th>Structure</th><th>Nb véh.</th>
-        <th>Vétusté structure</th><th>Vétusté nationale</th>
-        <th>Véh./agent (structure)</th><th>Véh./agent (national)</th>
-      </tr></thead>
+      <thead><tr><th>Structure</th><th class="tr">Nb véhicules</th><th>Vétusté structure</th><th>Vétusté nationale</th></tr></thead>
       <tbody>${rows}</tbody>
-      <tfoot><tr><td>TOTAL / MOY.</td><td class="tr">${totVeh}</td><td class="tc">${avgVet}%</td><td class="tc" style="color:var(--gris3)">${nat}%</td><td colspan="2">—</td></tr></tfoot>
+      <tfoot><tr><td>TOTAL</td><td class="tr">${totVeh}</td><td class="tc">${avgVet}%</td><td class="tc" style="color:var(--gris3)">${nat||'—'}%</td></tr></tfoot>
     </table></div>
   </div>`;
 }
 
 /* ════════ TAB FRAIS DE MISSION ════════ */
 function tabMissions(){
-  const c=CFG.c.FM, structs=ordered(), fm=D.fraisMission||[];
-  const annees=[...new Set(fm.map(r=>Number(r[c.annee])))].filter(Boolean).sort();
+  const c=CFG.c.FM, structs=ordered(), fm=fA(D.fraisMission||[]);
+  const TYPE_SIEGE=['Siège','SIEGE'];
   const types=['Formation','AutresMissions'];
   const tlabels={'Formation':'Formation','AutresMissions':'Autres missions'};
+  const annees=[...new Set(fm.map(r=>Number(r[c.annee])))].filter(Boolean).sort();
 
-  // KPI : totaux par type sur toutes années
   const totF=fm.filter(r=>strVal(r[c.type])==='Formation').reduce((s,r)=>s+n(r[c.mt]),0);
   const totA=fm.filter(r=>strVal(r[c.type])==='AutresMissions').reduce((s,r)=>s+n(r[c.mt]),0);
 
-  // Tableau : une ligne par structure×type, colonnes = années
-  // Pas de rowspan pour éviter les décalages au saut de page PDF
+  /* Retourne le montant consolidé (propre + filles DR) pour une structure, un type, une année */
+  function montantConso(sObj, type, annee){
+    const typeS=strVal(sObj.Type||sObj.type||'');
+    const isDI=typeS==='DI', isSiege=TYPE_SIEGE.includes(typeS);
+    const propre=fm.find(x=>n(x[c.struct])===sObj.id&&strVal(x[c.type])===type&&Number(x[c.annee])===annee);
+    const mPropre=propre?n(propre[c.mt]):0;
+    if(!(isDI||isSiege)) return mPropre;
+    const mFilles=drFilles(sObj).reduce((s,dr)=>{
+      const r=fm.find(x=>n(x[c.struct])===dr.id&&strVal(x[c.type])===type&&Number(x[c.annee])===annee);
+      return s+(r?n(r[c.mt]):0);
+    },0);
+    return mPropre+mFilles;
+  }
+
   const rows=structs.map(s=>{
+    const typeS=strVal(s.Type||s.type||'');
+    const isDI=typeS==='DI', isSiege=TYPE_SIEGE.includes(typeS);
+    const hasDonnees=types.some(t=>annees.some(a=>montantConso(s,t,a)>0));
+    if(!hasDonnees) return '';
+    const consTag=(isDI||isSiege)&&drFilles(s).length?`<span style="font-size:9px;color:var(--gris3);"> (${drFilles(s).length} DR)</span>`:'';
+
     return types.map((t,ti)=>{
-      const rowsT=annees.map(a=>{
-        const r=fm.find(x=>x[c.struct]==s.id&&strVal(x[c.type])===t&&Number(x[c.annee])===a);
-        return `<td class="tr">${r?fmt(n(r[c.mt]))+' €':'—'}</td>`;
-      }).join('');
-      // Afficher la cellule structure sur chaque ligne (pas de rowspan)
-      const structCell = ti===0
-        ? `<td style="font-weight:600;border-bottom:none"><span class="badge b-${s.Type}">${s.Type}</span> ${s[CFG.c.S.nom]}</td>`
-        : `<td style="color:var(--gris3);font-size:10px;border-top:none">↳</td>`;
-      return `<tr class="r-${s.Type}">
-        ${structCell}
-        <td style="font-size:10.5px;color:var(--gris2);font-weight:600;padding-left:${ti===0?'':'14px'}">${tlabels[t]}</td>
+      const rowsT=annees.map(a=>`<td class="tr">${montantConso(s,t,a)?fmt(montantConso(s,t,a))+' €':'—'}</td>`).join('');
+      return `<tr class="r-${typeS}">
+        <td style="font-weight:${isDI||isSiege?'700':'400'}">${ti===0?`<span class="badge b-${typeS}">${typeS}</span> ${s.Nom||s.nom}${consTag}`:'↳'}</td>
+        <td style="font-size:10.5px;color:var(--gris2);font-weight:600;">${tlabels[t]}</td>
         ${rowsT}
       </tr>`;
     }).join('');
-  }).join('');
+  }).filter(Boolean).join('');
 
-  // Totaux par année
-  const totCols=annees.map(a=>{
-    const t=fm.filter(r=>r[c.annee]===a).reduce((s,r)=>s+n(r[c.mt]),0);
-    return `<td class="tr">${fmt(t)} €</td>`;
-  }).join('');
+  const totCols=annees.map(a=>`<td class="tr">${fmt(fm.filter(r=>Number(r[c.annee])===a).reduce((s,r)=>s+n(r[c.mt]),0))} €</td>`).join('');
 
   return `
   <div class="kpi-global">
-    <div class="kg-card"><div class="kg-val" style="font-size:18px">${fmt(totF+totA)} €</div><div class="kg-lbl">Total frais (${annees[0]}–${annees[annees.length-1]})</div></div>
+    <div class="kg-card"><div class="kg-val" style="font-size:18px">${fmt(totF+totA)} €</div><div class="kg-lbl">Total frais</div></div>
     <div class="kg-card"><div class="kg-val" style="font-size:18px">${fmt(totF)} €</div><div class="kg-lbl">dont Formation</div></div>
     <div class="kg-card"><div class="kg-val" style="font-size:18px">${fmt(totA)} €</div><div class="kg-lbl">dont Autres missions</div></div>
   </div>
   <div class="twrap">
-    <div class="twrap-title">✈️ Frais de mission — évolution sur ${annees.length} ans</div>
+    <div class="twrap-title">✈️ Frais de mission — ${_anneeC}</div>
     <div class="tscroll"><table class="ct">
       <thead><tr><th>Structure</th><th>Type</th>${annees.map(a=>`<th class="tr">${a}</th>`).join('')}</tr></thead>
       <tbody>${rows}</tbody>

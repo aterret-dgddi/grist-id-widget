@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Fiche de structure — Indicateurs de gestion</title>
-<!-- jsPDF + html2canvas pour export PDF natif --><!-- v3.rh-1776757093 -->
+<!-- jsPDF + html2canvas pour export PDF natif --><!-- upd-1776768626 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
@@ -1106,13 +1106,18 @@ function build(){
     setStatus('⚠️ La table "Structures" est vide ou introuvable. Vérifiez que la table existe dans Grist et que son nom correspond exactement à "'+CFG.tables.structures+'" (sensible à la casse).', true);
     return;
   }
-  const first=S.find(s=>s[CFG.c.S.type]==='SIEGE')||S.find(s=>s[CFG.c.S.type]==='DI')||S[0];
+  const first=S.find(s=>['SIEGE','Siège'].includes(strVal(s[CFG.c.S.type])))||S.find(s=>strVal(s[CFG.c.S.type])==='DI')||S[0];
   if(first) selectStructure(first.id);
 }
 
 function selectorStructures(){
-  // Uniquement SIEGE, DI, SCN (pas DR)
-  return (D.structures||[]).filter(s=>['SIEGE','DI','SCN'].includes(s[CFG.c.S.type]));
+  // Siège, DI, SCN visibles dans le sélecteur (pas les DR)
+  // Grist peut renvoyer Type comme ["L","Siège"] — strVal() extrait la valeur
+  // Types acceptés : 'Siège' (Grist) ET 'SIEGE' (historique) + 'DI' + 'SCN'
+  const TYPES_OK=['Siège','SIEGE','siège','DI','SCN'];
+  return (D.structures||[]).filter(function(s){
+    return TYPES_OK.includes(strVal(s[CFG.c.S.type]));
+  });
 }
 
 function buildDropdown(){
@@ -1127,8 +1132,8 @@ function renderDropdownList(query){
   const list=document.getElementById('sel-list');
   const structs=selectorStructures();
   const q=query.toLowerCase().trim();
-  const groups={SIEGE:[],DI:[],SCN:[]};
-  const gLabels={SIEGE:'Siège',DI:'Directions Interrégionales',SCN:'Services à Compétence Nationale'};
+  const groups={'Siège':[],'SIEGE':[],DI:[],SCN:[]};
+  const gLabels={'Siège':'Siège DG','SIEGE':'Siège DG',DI:'Directions Interrégionales',SCN:'Services à Compétence Nationale'};
 
   filteredOptions=[];
 
@@ -1143,7 +1148,7 @@ function renderDropdownList(query){
   });
 
   let html='';
-  ['SIEGE','DI','SCN'].forEach(t=>{
+  ['Siège','SIEGE','DI','SCN'].forEach(t=>{
     if(!groups[t]?.length) return;
     html+=`<div class="sel-group-header">${gLabels[t]}</div>`;
     groups[t].forEach(s=>{
@@ -1554,7 +1559,7 @@ function buildPdfHTML(s, blocs, inclAttn, inclDR){
       +'<div style="font-size:9px;color:#B0C4E8;font-weight:bold;letter-spacing:.8px;text-transform:uppercase;margin-bottom:4px;">Fiche identité</div>'
       +'<div style="font-size:18px;font-weight:bold;color:#fff;line-height:1.2;margin-bottom:6px;">'+s[CFG.c.S.nom]+'</div>'
       +'<div style="font-size:10px;color:#B0C4E8;">'
-        +s[CFG.c.S.type]+(s[CFG.c.S.region]?' &mdash; '+s[CFG.c.S.region]:'')
+        +strVal(s[CFG.c.S.type])+(s[CFG.c.S.region]?' &mdash; '+s[CFG.c.S.region]:'')
         +(s[CFG.c.S.chef]?' | Responsable&#160;: '+s[CFG.c.S.chef]:'')
         +(s[CFG.c.S.maj]?' | Données au '+s[CFG.c.S.maj]:'')
       +'</div>'
@@ -1857,7 +1862,7 @@ function renderFiche(s){
   const vh=vhFilt[0]||null;
   const fm=(D.fraisMission||[]).filter(r=>r[CFG.c.FM.struct]==id); // tout l'historique
   const cm=(D.commentaires||[]).filter(r=>r[CFG.c.CM.struct]==id);
-  const drs=s[CFG.c.S.type]==='DI'?(D.structures||[]).filter(r=>r[CFG.c.S.type]==='DR'&&r[CFG.c.S.parent]==id):[];
+  const drs=['DI','Siège','SIEGE'].includes(strVal(s[CFG.c.S.type]))?(D.structures||[]).filter(r=>strVal(r[CFG.c.S.type])==='DR'&&r[CFG.c.S.parent]==id):[];
 
   // Contentieux : masqué si aucune donnée significative
   const hasContentieux=ct.some(r=>n(r[CFG.c.CT.nb])>0||n(r[CFG.c.CT.cannabis])>0||n(r[CFG.c.CT.cocaine])>0||n(r[CFG.c.CT.tabac])>0);
@@ -1952,12 +1957,12 @@ function renderRH(rhRows,cms,drs,s){
   const d=rhRows&&rhRows.length?rhRows[0]:null;
   if(!d) return secEmpty('👥','Situation RH',cm,'','rh');
   const annee=anneeAffichee(rhRows,'Annee');
-  const typeS=s?s[CFG.c.S.type]:'';
+  const typeS=s?strVal(s[CFG.c.S.type]):'';
 
   // Colonnes ETPT directes (pas de domaine séparé)
-  const etptAgco=n(d[c.etpt_agco]);
-  const etptSu  =n(d[c.etpt_su]);
-  const etptTot =n(d[c.etpt_tot])||etptAgco+etptSu; // fallback si colonne absente
+  const etptAgco=Math.round(n(d[c.etpt_agco]));
+  const etptSu  =Math.round(n(d[c.etpt_su]));
+  const etptTot =Math.round(n(d[c.etpt_tot])||etptAgco+etptSu); // fallback si colonne absente
 
   // Effectifs cibles : uniquement DI et SIEGE
   const showCib=['DI','SIEGE'].includes(typeS);
@@ -1965,7 +1970,7 @@ function renderRH(rhRows,cms,drs,s){
 
   // Masse salariale : DI, DR, SIEGE
   const showMS=['DI','DR','SIEGE'].includes(typeS);
-  const ms=n(d[c.ms]);
+  const ms=Math.ceil(n(d[c.ms]));
 
   const jf =n(d[c.jf]);
   const abs =n(d[c.abs]);

@@ -204,7 +204,29 @@ tr:last-child td{border-bottom:none;}
           <span class="ind-col">EffectifsCibles</span>
         </button>
       </div>
-      <div style="font-size:11px;color:var(--gris3);">
+      <div id="etpt-mois-wrap" style="margin-top:10px;padding:10px 12px;background:#EEF2F7;border-radius:6px;border-left:3px solid #1351A8;display:none;">
+        <div style="font-size:11px;font-weight:700;color:#002F6C;margin-bottom:6px;">⚙️ Calcul ETPT — normalisation mensuelle</div>
+        <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+          <label style="font-size:11px;color:#4A5A6A;">
+            <input type="radio" name="etpt-mode" value="annee" checked onchange="updateEtptMode()">
+            Année complète (÷ 12)
+          </label>
+          <label style="font-size:11px;color:#4A5A6A;">
+            <input type="radio" name="etpt-mode" value="mois" onchange="updateEtptMode()">
+            Année en cours (÷ mois écoulés)
+          </label>
+          <div id="etpt-mois-input" style="display:none;align-items:center;gap:6px;">
+            <span style="font-size:11px;color:#4A5A6A;">Mois écoulés :</span>
+            <input type="number" id="etpt-mois" min="1" max="12" value="3"
+              style="width:56px;padding:4px 7px;border:1.5px solid #CDD6E4;border-radius:4px;font-size:12px;">
+            <span style="font-size:10px;color:#8A9BAA;">(jan=1, fév=2, mar=3…)</span>
+          </div>
+        </div>
+        <div style="font-size:10.5px;color:#8A9BAA;margin-top:6px;">
+          Le fichier SI contient <strong>12 × ETPT mensuel</strong>. Le widget divise automatiquement par le diviseur choisi.
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--gris3);margin-top:8px;">
         Sélectionnez l'indicateur correspondant au fichier que vous allez déposer.
         Le nom du fichier est analysé pour une suggestion automatique.
       </div>
@@ -329,6 +351,13 @@ function log(msg, cls) {
    GRIST INIT
 ───────────────────────────────────────────────── */
 window.addEventListener('load', function() {
+  // Afficher panneau ETPT car ETPT_SU est sélectionné par défaut
+  document.getElementById('etpt-mois-wrap').style.display = '';
+  // Pré-remplir mois écoulés = mois courant - 1 (avril → 3)
+  // getMonth() = 0 en janvier, 3 en avril → mois complets écoulés = getMonth()
+  var moisEcoules = new Date().getMonth(); // jan=0→0 mois, avr=3→3 mois complets
+  document.getElementById('etpt-mois').value = Math.max(moisEcoules, 1);
+
   if (typeof grist === 'undefined') {
     setGristStatus('warn', 'Grist non détecté — mode test local');
     log('Mode local : les données Grist ne sont pas disponibles', 'log-warn');
@@ -419,6 +448,21 @@ function selectIndicateur(btn) {
   btn.classList.add('active');
   G.colIndicateur = btn.dataset.col;
   log('Indicateur sélectionné : ' + G.colIndicateur, 'log-info');
+  // Afficher le panneau ETPT seulement pour les indicateurs ETPT
+  var isEtpt = ['ETPT_SU','ETPT_AGCO','ETPTtotal'].indexOf(G.colIndicateur) !== -1;
+  document.getElementById('etpt-mois-wrap').style.display = isEtpt ? '' : 'none';
+}
+function updateEtptMode() {
+  var mode = document.querySelector('input[name="etpt-mode"]:checked').value;
+  document.getElementById('etpt-mois-input').style.display = mode==='mois' ? 'flex' : 'none';
+}
+function getDiviseurEtpt(annee) {
+  var mode = document.querySelector('input[name="etpt-mode"]:checked');
+  if (!mode || mode.value === 'annee') return 12;
+  var mois = parseInt(document.getElementById('etpt-mois').value) || 3;
+  // Si l'année du fichier correspond à l'année en cours → utiliser le diviseur mois
+  var anneeCourante = new Date().getFullYear();
+  return (annee === anneeCourante) ? mois : 12;
 }
 
 /* Détection automatique depuis le nom de fichier */
@@ -643,7 +687,12 @@ function genererPreview() {
   G.rawRows.forEach(function(r){
     var src    = r[colSrc];
     var annee  = Number(r[colAn]);
-    var valeur = nVal(r[colVal]);
+    var valeurBrute = nVal(r[colVal]);
+    var anneeR = Number(r[colAn]) || 0;
+    var isEtptCol = ['ETPT_SU','ETPT_AGCO','ETPTtotal'].indexOf(G.colIndicateur) !== -1;
+    var valeur = (isEtptCol && valeurBrute !== null)
+      ? Math.round(valeurBrute / getDiviseurEtpt(anneeR))
+      : valeurBrute;
     if (!src || !annee || valeur === null) {
       G.preview.push({ action:'skip', src:src, annee:annee, valeur:valeur, raison:'valeur manquante' });
       return;
