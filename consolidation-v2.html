@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8"><!-- upd-1776686598 -->
+<meta charset="UTF-8"><!-- upd-1776757093 -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Consolidation Globale — Indicateurs de gestion</title>
 <style>
@@ -288,7 +288,7 @@ const CFG={
     S:{id:'id',nom:'Nom',type:'Type',parent:'Parent',region:'Region'},
     CT:{struct:'Structure',nb:'NombreTotal',cannabis:'KgCannabis',cocaine:'KgCocaine',tabac:'KgTabac'},
     B:{struct:'Structure',typeb:'TypeBudget',annee:'Annee',ae_n:'AE_Notifiees',ae_d:'AE_MisesADispo',ae_c:'AE_Consommees',cp_n:'CP_Notifiees',cp_d:'CP_MisesADispo',cp_c:'CP_Consommees'},
-    RH:{struct:'Structure',rem:'EffectifsRemuneres',cib:'EffectifsCibles',ms:'MasseSalariale',jf:'JoursFormationParAgent',abs:'AbsenteismeJours',age:'AgeMoyen'},
+    RH:{struct:'Structure',etpt_su:'ETPT_SU',etpt_agco:'ETPT_AGCO',etpt_tot:'ETPTtotal',cib:'EffectifsCibles',ms:'MasseSalariale',jf:'JoursFormationParAgent',abs:'AbsenteismeJours',age:'AgeMoyen',annee:'Annee'},
     IM:{struct:'Structure',site:'NomSite',occ:'TypeOccupation',adr:'Adresse',m2:'M2Occupes',cout:'CoutGestionM2',loyer:'LoyerAnnuel'},
     VH:{struct:'Structure',nb:'NbVehicules',vet_s:'TauxVetusteStructure',vet_n:'TauxVetusteMoyenNational',vpa_s:'VehiculesParAgent',vpa_n:'VehiculesMoyenNational'},
     FM:{struct:'Structure',type:'TypeMission',annee:'Annee',mt:'MontantTotal',tr:'PartTransport',hb:'PartHebergement',rp:'PartRepas'},
@@ -415,14 +415,14 @@ function loadDemo(){
       {id:11,Structure:8,TypeBudget:'Fonctionnement',Annee:2025,AE_Notifiees:950000, AE_MisesADispo:920000, AE_Consommees:410000, CP_Notifiees:950000, CP_MisesADispo:920000, CP_Consommees:400000},
     ],
     rh:[
-      {id:1,Structure:1,EffectifsRemuneres:145,EffectifsCibles:150,MasseSalariale:9200000,JoursFormationParAgent:3.2,AbsenteismeJours:820,AgeMoyen:44.1},
-      {id:2,Structure:2,EffectifsRemuneres:112,EffectifsCibles:120,MasseSalariale:7100000,JoursFormationParAgent:2.8,AbsenteismeJours:640,AgeMoyen:46.3},
-      {id:3,Structure:3,EffectifsRemuneres:54, EffectifsCibles:58, MasseSalariale:3200000,JoursFormationParAgent:3.5,AbsenteismeJours:310,AgeMoyen:43.7},
-      {id:4,Structure:4,EffectifsRemuneres:48, EffectifsCibles:52, MasseSalariale:2900000,JoursFormationParAgent:2.1,AbsenteismeJours:295,AgeMoyen:47.2},
-      {id:5,Structure:5,EffectifsRemuneres:98, EffectifsCibles:105,MasseSalariale:6200000,JoursFormationParAgent:4.1,AbsenteismeJours:520,AgeMoyen:42.9},
-      {id:6,Structure:6,EffectifsRemuneres:44, EffectifsCibles:45, MasseSalariale:2700000,JoursFormationParAgent:3.8,AbsenteismeJours:198,AgeMoyen:41.5},
-      {id:7,Structure:7,EffectifsRemuneres:67, EffectifsCibles:70, MasseSalariale:4500000,JoursFormationParAgent:5.2,AbsenteismeJours:380,AgeMoyen:39.8},
-      {id:8,Structure:8,EffectifsRemuneres:51, EffectifsCibles:55, MasseSalariale:3400000,JoursFormationParAgent:4.8,AbsenteismeJours:290,AgeMoyen:40.3},
+      {id:1,Structure:1,ETPT_SU:80,ETPT_AGCO:65,ETPTtotal:145,EffectifsCibles:150,MasseSalariale:9200000,JoursFormationParAgent:3.2,AbsenteismeJours:820,AgeMoyen:44.1,Annee:2026},
+      {id:2,Structure:2,ETPT_SU:62,ETPT_AGCO:50,ETPTtotal:112,EffectifsCibles:120,MasseSalariale:7100000,JoursFormationParAgent:2.8,AbsenteismeJours:640,AgeMoyen:46.3,Annee:2026},
+      {id:3,Structure:3,ETPT_SU:30,ETPT_AGCO:24,ETPTtotal:54, EffectifsCibles:58, MasseSalariale:3200000,JoursFormationParAgent:3.5,AbsenteismeJours:310,AgeMoyen:43.7,Annee:2026},
+      {id:4,Structure:4,ETPT_SU:26,ETPT_AGCO:22,ETPTtotal:48, EffectifsCibles:52, MasseSalariale:2900000,JoursFormationParAgent:2.1,AbsenteismeJours:295,AgeMoyen:47.2,Annee:2026},
+      {id:5,Structure:5,ETPT_SU:54,ETPT_AGCO:44,ETPTtotal:98, EffectifsCibles:105,MasseSalariale:6200000,JoursFormationParAgent:4.1,AbsenteismeJours:520,AgeMoyen:42.9,Annee:2026},
+      {id:6,Structure:6,ETPT_SU:24,ETPT_AGCO:20,ETPTtotal:44, EffectifsCibles:45, MasseSalariale:2700000,JoursFormationParAgent:3.8,AbsenteismeJours:198,AgeMoyen:41.5,Annee:2026},
+      {id:7,Structure:7,ETPT_SU:37,ETPT_AGCO:30,ETPTtotal:67, EffectifsCibles:70, MasseSalariale:4500000,JoursFormationParAgent:5.2,AbsenteismeJours:380,AgeMoyen:39.8,Annee:2026},
+      {id:8,Structure:8,ETPT_SU:28,ETPT_AGCO:23,ETPTtotal:51, EffectifsCibles:55, MasseSalariale:3400000,JoursFormationParAgent:4.8,AbsenteismeJours:290,AgeMoyen:40.3,Annee:2026},
     ],
     immobilier:[
       {id:1,Structure:1,NomSite:'Tour Centrale — Siège',         TypeOccupation:'Domaine public',Adresse:'33 av. du Maine, Paris 15e',        M2Occupes:4200,CoutGestionM2:380,LoyerAnnuel:null},
@@ -603,7 +603,7 @@ function tabBudget(){
 function tabRH(){
   const c=CFG.c.RH, structs=ordered(), rhs=D.rh||[];
   let totR=0,totC=0,totMS=0;
-  rhs.forEach(r=>{totR+=n(r[c.rem]);totC+=n(r[c.cib]);totMS+=n(r[c.ms]);});
+  rhs.forEach(r=>{totR+=n(r[c.etpt_tot])||n(r[c.rem]||0);totC+=n(r[c.cib]);totMS+=n(r[c.ms]);});
   const pct=totC?Math.round(totR/totC*100):0;
   const ageMoy=rhs.length?(rhs.reduce((s,r)=>s+n(r[c.age]),0)/rhs.length).toFixed(1):0;
   const totAbs=rhs.reduce((s,r)=>s+n(r[c.abs]),0);
@@ -611,14 +611,14 @@ function tabRH(){
   const rows=structs.map(s=>{
     const r=rhs.find(x=>x[c.struct]==s.id);
     if(!r) return `<tr class="r-${s.Type}"><td><span class="badge b-${s.Type}">${s.Type}</span> ${s[CFG.c.S.nom]}</td><td colspan="7" class="tc" style="color:var(--gris3)">—</td></tr>`;
-    const rem=n(r[c.rem]),cib=n(r[c.cib]);
-    const p=cib?Math.round(rem/cib*100):0;
-    const cls=p<90?'mf-warn':'mf-ok';
+    const etptSu=n(r[c.etpt_su]),etptAgco=n(r[c.etpt_agco]),etptTot=n(r[c.etpt_tot])||etptSu+etptAgco;
+    const cib=n(r[c.cib]);
+    const typeS=s[CFG.c.S.type];
     return `<tr class="r-${s.Type}">
       <td><span class="badge b-${s.Type}">${s.Type}</span> ${s[CFG.c.S.nom]}</td>
-      <td class="tr">${rem}</td><td class="tr">${cib}</td>
-      <td class="tc"><div>${p}%</div><div class="mbar"><div class="mfill ${cls}" style="width:${p}%"></div></div></td>
-      <td class="tr">${fmt(r[c.ms]||0)} €</td>
+      <td class="tr">${etptAgco||'—'}</td><td class="tr">${etptSu||'—'}</td><td class="tr font-bold">${etptTot}</td>
+      <td class="tr">${['DI','SIEGE'].includes(typeS)?cib:'—'}</td>
+      <td class="tr">${['DI','DR','SIEGE'].includes(typeS)?fmt(n(r[c.ms]))+' €':'—'}</td>
       <td class="tr">${n(r[c.jf]).toFixed(1)} j</td>
       <td class="tr">${n(r[c.abs])} j</td>
       <td class="tr">${n(r[c.age]).toFixed(1)} ans</td>
@@ -637,9 +637,9 @@ function tabRH(){
   <div class="twrap">
     <div class="twrap-title">👥 Situation RH par structure</div>
     <div class="tscroll"><table class="ct">
-      <thead><tr><th>Structure</th><th>Eff. rém.</th><th>Eff. cibles</th><th>Couverture</th><th>Masse salariale</th><th>J. form./agent</th><th>Absentéisme</th><th>Âge moyen</th></tr></thead>
+      <thead><tr><th>Structure</th><th class="tr">ETPT AGCO</th><th class="tr">ETPT SU</th><th class="tr">ETPT total</th><th class="tr">Eff. cibles</th><th class="tr">Masse salariale</th><th class="tr">J. form./agent</th><th class="tr">Absentéisme</th><th class="tr">Âge moyen</th></tr></thead>
       <tbody>${rows}</tbody>
-      <tfoot><tr><td>TOTAL / MOY.</td><td class="tr">${totR}</td><td class="tr">${totC}</td><td class="tc">${pct}%</td><td class="tr">${fmt(totMS)} €</td><td>—</td><td class="tr">${totAbs} j</td><td class="tr">${ageMoy} ans</td></tr></tfoot>
+      <tfoot><tr><td colspan="3">TOTAL ETPT</td><td class="tr">${totR}</td><td>—</td><td class="tr">${fmt(totMS)} €</td><td>—</td><td class="tr">${totAbs} j</td><td class="tr">${ageMoy} ans</td></tr></tfoot>
     </table></div>
   </div>`;
 }

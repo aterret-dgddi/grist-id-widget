@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Fiche de structure — Indicateurs de gestion</title>
-<!-- jsPDF + html2canvas pour export PDF natif --><!-- v3.upd-1776686598 -->
+<!-- jsPDF + html2canvas pour export PDF natif --><!-- v3.rh-1776757093 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
@@ -493,6 +493,11 @@ body{font-family:'Cabin',sans-serif;background:#F2F5FA;color:var(--gris1);line-h
   <span id="cur-parent"></span>
 </div>
 
+<!-- ═══════════ SÉLECTEUR ANNÉE ═══════════ -->
+<div id="year-bar" style="display:none;background:#fff;border-bottom:1px solid var(--bord);padding:6px 18px;display:flex;align-items:center;gap:10px;">
+  <span style="font-size:10.5px;color:var(--gris3);flex-shrink:0;">Année :</span>
+  <div id="year-btns" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+</div>
 <!-- ═══════════ NAVIGATION RAPIDE ═══════════ -->
 <div id="quick-nav">
   <span class="qnav-label">Accès rapide :</span>
@@ -642,6 +647,67 @@ body{font-family:'Cabin',sans-serif;background:#F2F5FA;color:var(--gris1);line-h
 
 <script>
 /* ── Fonctions utilitaires globales — définies en premier ── */
+
+/* Retourne la liste triée des années disponibles dans toutes les tables avec annee */
+function getAnneesDisponibles(){
+  const sets=[];
+  ['budget','rh','contentieux','vehicules','fraisMission'].forEach(function(k){
+    (D[k]||[]).forEach(function(r){
+      const a=Number(r.Annee||r.annee);
+      if(a>2000) sets.push(a);
+    });
+  });
+  return [...new Set(sets)].sort(function(a,b){return b-a;}); // décroissant
+}
+
+/* Construit la barre des boutons d'année et retourne l'année sélectionnée */
+function buildYearBar(){
+  const annees=getAnneesDisponibles();
+  const bar=document.getElementById('year-btns');
+  const barWrap=document.getElementById('year-bar');
+  if(!bar||!annees.length){if(barWrap)barWrap.style.display='none';return;}
+  barWrap.style.display='flex';
+  // Sélectionner l'année la plus récente par défaut si pas encore définie
+  if(!_annee||!annees.includes(_annee)) _annee=annees[0];
+  bar.innerHTML=annees.map(function(a){
+    var active=a===_annee;
+    return'<button onclick="setAnnee('+a+')" style="padding:3px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid '+(active?'var(--rep)':'var(--bord)')+';background:'+(active?'var(--rep)':'var(--gris4)')+';color:'+(active?'#fff':'var(--gris2)')+';">'+a+'</button>';
+  }).join('');
+}
+
+/* Change l'année sélectionnée et re-render la fiche */
+function setAnnee(a){
+  _annee=a;
+  buildYearBar();
+  if(current) renderFiche(current);
+}
+
+/* Filtre les lignes d'une table par l'année sélectionnée
+   Si plusieurs années dispo pour cette structure, retourne celles de _annee
+   Si aucune donnée pour _annee, retourne les plus récentes */
+function filtreAnnee(rows, colonneAnnee){
+  if(!rows||!rows.length) return rows;
+  colonneAnnee=colonneAnnee||'Annee';
+  const avecAnnee=rows.filter(function(r){return Number(r[colonneAnnee])>0;});
+  if(!avecAnnee.length) return rows; // table sans colonne Annee → tout retourner
+  if(_annee){
+    const filtre=avecAnnee.filter(function(r){return Number(r[colonneAnnee])===_annee;});
+    if(filtre.length) return filtre;
+  }
+  // Fallback : année la plus récente disponible
+  const maxA=Math.max.apply(null,avecAnnee.map(function(r){return Number(r[colonneAnnee]);}));
+  return avecAnnee.filter(function(r){return Number(r[colonneAnnee])===maxA;});
+}
+
+/* Retourne l'année effectivement affichée pour un jeu de lignes */
+function anneeAffichee(rows, colonneAnnee){
+  colonneAnnee=colonneAnnee||'Annee';
+  if(!rows||!rows.length) return '';
+  const a=Number(rows[0][colonneAnnee]);
+  return a>2000?String(a):'';
+}
+
+/* ── Fonctions utilitaires globales — définies en premier ── */
 function n(v){ var x=parseFloat(v); return isNaN(x)?0:x; }
 /* Extrait un nombre depuis une valeur Moyennes qui peut être "26,9" ou "25,9 %" ou 71 */
 function nPct(v){ if(v==null) return 0; var s=String(v).replace(',','.').replace(/[^0-9.]/g,''); var x=parseFloat(s); return isNaN(x)?0:x; }
@@ -660,17 +726,17 @@ const CFG={
   tables:{structures:'Structures',contentieux:'Contentieux',budget:'Budget',rh:'RH',immobilier:'Immobilier',vehicules:'Vehicules',fraisMission:'FraisMission',commentaires:'Commentaires',moyennes:'Moyennes'},
   c:{
     S:{id:'id',nom:'Nom',type:'Type',parent:'Parent',region:'Region',chef:'Chef',logo:'Logo',maj:'DateMAJ',sigle:'Sigle'},
-    CT:{struct:'Structure',nb:'NombreTotal',cannabis:'KgCannabis',cocaine:'KgCocaine',tabac:'KgTabac'},
+    CT:{struct:'Structure',nb:'NombreTotal',cannabis:'KgCannabis',cocaine:'KgCocaine',tabac:'KgTabac',annee:'Annee'},
     B:{struct:'Structure',typeb:'TypeBudget',annee:'Annee',ae_n:'AE_Notifiees',ae_d:'AE_MisesADispo',ae_c:'AE_Consommees',cp_n:'CP_Notifiees',cp_d:'CP_MisesADispo',cp_c:'CP_Consommees'},
-    RH:{struct:'Structure',rem:'EffectifsRemuneres',cib:'EffectifsCibles',ms:'MasseSalariale',jf:'JoursFormationParAgent',abs:'AbsenteismeJours',age:'AgeMoyen'},
+    RH:{struct:'Structure',etpt_su:'ETPT_SU',etpt_agco:'ETPT_AGCO',etpt_tot:'ETPTtotal',cib:'EffectifsCibles',ms:'MasseSalariale',jf:'JoursFormationParAgent',abs:'AbsenteismeJours',age:'AgeMoyen',annee:'Annee'},
     IM:{struct:'Structure',site:'NomSite',occ:'TypeOccupation',adr:'Adresse',m2:'M2Occupes',cout:'CoutGestionM2',loyer:'LoyerAnnuel'},
-    VH:{struct:'Structure',nb:'NbVehicules',vet_s:'TauxVetusteStructure',vpa_s:'VehiculesParAgent'},
+    VH:{struct:'Structure',nb:'NbVehicules',vet_s:'TauxVetusteStructure',vpa_s:'VehiculesParAgent',annee:'Annee'},
     // Moyennes nationales lues depuis la table Moyennes (formules Grist)
     MO:{vet_n:'TauxVetusteMoyenNational',vpa_n:'VehiculesMoyenNational',age_n:'AgeMoyenNational',abs_n:'AbsenteismeMoyenNational',jf_n:'JoursFormationMoyenNational',cae_n:'ConsoAEMoyenNational',ccp_n:'ConsoCPMoyenNational',annee:'Annee'},
     FM:{struct:'Structure',type:'TypeMission',annee:'Annee',mt:'MontantTotal',tr:'PartTransport',hb:'PartHebergement',rp:'PartRepas'},
     // Commentaires : Bloc peut valoir 'contentieux','budget','rh','immobilier',
     //   'vehicules','fraisMission', 'pointsAttention' (texte libre) ou 'chantier' (une pillule par ligne)
-    CM:{struct:'Structure',bloc:'Bloc',txt:'Commentaire'},
+    CM:{struct:'Structure',bloc:'Bloc',txt:'Commentaire',maj:'DateMAJ'},
   }
 };
 
@@ -679,7 +745,8 @@ const CFG={
 ═══════════════════════════════════════════════════════ */
 let D={};
 let current=null;
-let _curId=0;  // id de la structure en cours de rendu
+let _curId=0;   // id de la structure en cours de rendu
+let _annee=null;  // année sélectionnée (null = la plus récente disponible)
 let pdfFormat='single';
 let selectedStructsForPdf=new Set();
 let focusedOptIdx=-1;
@@ -963,12 +1030,12 @@ function loadDemo(){
       {id:6, Structure:5,TypeBudget:'Fonctionnement',Annee:2025,AE_Notifiees:1600000,AE_MisesADispo:1600000,AE_Consommees:980000, CP_Notifiees:1600000,CP_MisesADispo:1600000,CP_Consommees:950000},
     ],
     rh:[
-      {id:1,Structure:1,EffectifsRemuneres:145,EffectifsCibles:150,MasseSalariale:9200000,JoursFormationParAgent:3.2,AbsenteismeJours:820,AgeMoyen:44.1},
-      {id:2,Structure:2,EffectifsRemuneres:112,EffectifsCibles:120,MasseSalariale:7100000,JoursFormationParAgent:2.8,AbsenteismeJours:640,AgeMoyen:46.3},
-      {id:3,Structure:3,EffectifsRemuneres:54, EffectifsCibles:58, MasseSalariale:3200000,JoursFormationParAgent:3.5,AbsenteismeJours:310,AgeMoyen:43.7},
-      {id:4,Structure:5,EffectifsRemuneres:98, EffectifsCibles:105,MasseSalariale:6200000,JoursFormationParAgent:4.1,AbsenteismeJours:520,AgeMoyen:42.9},
-      {id:5,Structure:9,EffectifsRemuneres:67, EffectifsCibles:70, MasseSalariale:4500000,JoursFormationParAgent:5.2,AbsenteismeJours:380,AgeMoyen:39.8},
-      {id:6,Structure:10,EffectifsRemuneres:51,EffectifsCibles:55, MasseSalariale:3400000,JoursFormationParAgent:4.8,AbsenteismeJours:290,AgeMoyen:40.3},
+      {id:1,Structure:1,ETPT_SU:80,ETPT_AGCO:65,ETPTtotal:145,EffectifsCibles:150,MasseSalariale:9200000,JoursFormationParAgent:3.2,AbsenteismeJours:820,AgeMoyen:44.1,Annee:2026},
+      {id:2,Structure:2,ETPT_SU:60,ETPT_AGCO:52,ETPTtotal:112,EffectifsCibles:120,MasseSalariale:7100000,JoursFormationParAgent:2.8,AbsenteismeJours:640,AgeMoyen:46.3,Annee:2026},
+      {id:3,Structure:3,ETPT_SU:30,ETPT_AGCO:24,ETPTtotal:54, EffectifsCibles:58, MasseSalariale:3200000,JoursFormationParAgent:3.5,AbsenteismeJours:310,AgeMoyen:43.7,Annee:2026},
+      {id:4,Structure:5,ETPT_SU:54,ETPT_AGCO:44,ETPTtotal:98, EffectifsCibles:105,MasseSalariale:6200000,JoursFormationParAgent:4.1,AbsenteismeJours:520,AgeMoyen:42.9,Annee:2026},
+      {id:5,Structure:9,ETPT_SU:37,ETPT_AGCO:30,ETPTtotal:67, EffectifsCibles:70, MasseSalariale:4500000,JoursFormationParAgent:5.2,AbsenteismeJours:380,AgeMoyen:39.8,Annee:2026},
+      {id:6,Structure:10,ETPT_SU:28,ETPT_AGCO:23,ETPTtotal:51,EffectifsCibles:55, MasseSalariale:3400000,JoursFormationParAgent:4.8,AbsenteismeJours:290,AgeMoyen:40.3,Annee:2026},
     ],
     immobilier:[
       {id:1,Structure:1,NomSite:'Tour Centrale — Siège',TypeOccupation:'Domaine public',Adresse:'33 avenue du Maine, 75015 Paris',M2Occupes:4200,CoutGestionM2:380,LoyerAnnuel:null},
@@ -1030,6 +1097,7 @@ function build(){
   document.getElementById('loading').style.display='none';
   buildDropdown();
   buildQuickNav();
+  buildYearBar();
   buildPdfMultiList();
   // Auto-sélection première structure
   const S=D.structures||[];
@@ -1771,20 +1839,40 @@ ${ficheHTML}
 }
 function renderFiche(s){
   const id=s.id;
-  _curId=id;  // utilisé par renderCmt pour la sauvegarde
+  _curId=id;
   const body=document.getElementById('fiche-body');
   body.style.display='block';
-  const ct=(D.contentieux||[]).filter(r=>r[CFG.c.CT.struct]==id);
-  const bu=(D.budget||[]).filter(r=>r[CFG.c.B.struct]==id);
-  const rh=(D.rh||[]).find(r=>r[CFG.c.RH.struct]==id);
+
+  // ── Filtrage par année sélectionnée ──
+  const ctAll=(D.contentieux||[]).filter(r=>r[CFG.c.CT.struct]==id);
+  const ct=filtreAnnee(ctAll,'Annee');
+  const buAll=(D.budget||[]).filter(r=>r[CFG.c.B.struct]==id);
+  const bu=filtreAnnee(buAll,'Annee');
+  // RH : plusieurs lignes par année (AGCO + SU), garder toutes les lignes de l'année
+  const rhAll=(D.rh||[]).filter(r=>r[CFG.c.RH.struct]==id);
+  const rh=filtreAnnee(rhAll,'Annee');  // tableau, pas .find()
   const im=(D.immobilier||[]).filter(r=>r[CFG.c.IM.struct]==id);
-  const vh=(D.vehicules||[]).find(r=>r[CFG.c.VH.struct]==id);
-  const fm=(D.fraisMission||[]).filter(r=>r[CFG.c.FM.struct]==id);
+  const vhAll=(D.vehicules||[]).filter(r=>r[CFG.c.VH.struct]==id);
+  const vhFilt=filtreAnnee(vhAll,'Annee');
+  const vh=vhFilt[0]||null;
+  const fm=(D.fraisMission||[]).filter(r=>r[CFG.c.FM.struct]==id); // tout l'historique
   const cm=(D.commentaires||[]).filter(r=>r[CFG.c.CM.struct]==id);
   const drs=s[CFG.c.S.type]==='DI'?(D.structures||[]).filter(r=>r[CFG.c.S.type]==='DR'&&r[CFG.c.S.parent]==id):[];
-  body.innerHTML=renderHeader(s)+renderPointsAttn(cm)+`<div class="grid">`+renderContentieux(ct,cm,drs)+renderRH(rh,cm,drs)+renderBudget(bu,cm)+renderVehicules(vh,cm,drs)+renderImmobilier(im,cm)+renderFraisMission(fm,cm)+`</div>`;
-}
 
+  // Contentieux : masqué si aucune donnée significative
+  const hasContentieux=ct.some(r=>n(r[CFG.c.CT.nb])>0||n(r[CFG.c.CT.cannabis])>0||n(r[CFG.c.CT.cocaine])>0||n(r[CFG.c.CT.tabac])>0);
+  const ctBlock=hasContentieux?renderContentieux(ct,cm,drs):'';
+
+  body.innerHTML=renderHeader(s)+renderPointsAttn(cm)
+    +'<div class="grid">'
+    +ctBlock
+    +renderRH(rh,cm,drs,s)
+    +renderBudget(bu,cm)
+    +renderVehicules(vh,cm,drs)
+    +renderImmobilier(im,cm)
+    +renderFraisMission(fm,cm)
+    +'</div>';
+}
 function renderHeader(s){
   const c=CFG.c.S;
   return`<div class="fiche-header">
@@ -1839,28 +1927,79 @@ function renderContentieux(data,cms,drs){
   const tot=data.reduce((s,r)=>s+(r[c.nb]||0),0);
   const clsN=tot===0?'vert':tot<5?'':tot<10?'orange':'rouge';
   const can=data.reduce((s,r)=>s+(r[c.cannabis]||0),0), coc=data.reduce((s,r)=>s+(r[c.cocaine]||0),0), tab=data.reduce((s,r)=>s+(r[c.tabac]||0),0);
-  return`<div class="section"><div class="sec-hdr"><span class="ico">⚖️</span><h3>Contentieux</h3></div><div class="sec-body"><div class="kpi-row"><div class="kpi ${clsN}"><div class="kv">${tot}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Dossiers</div></div><div class="kpi"><div class="kv" style="font-size:15px">${fmtD(can)} kg</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Cannabis</div></div><div class="kpi"><div class="kv" style="font-size:15px">${fmtD(coc)} kg</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Cocaïne</div></div><div class="kpi"><div class="kv" style="font-size:15px">${fmtD(tab)} kg</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Tabac</div></div></div>${drs.length?renderDRBlock(drs,'contentieux'):''}${renderCmt(cm,'contentieux',_curId)}</div></div>`;
+  return`<div class="section"><div class="sec-hdr"><span class="ico">⚖️</span><h3>Contentieux${anneeAffichee(data,"Annee")?' <span style="font-size:11px;font-weight:400;opacity:.7;">— '+anneeAffichee(data,"Annee")+'</span>':''}</h3></div><div class="sec-body"><div class="kpi-row"><div class="kpi ${clsN}"><div class="kv">${tot}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Dossiers</div></div><div class="kpi"><div class="kv" style="font-size:15px">${fmtD(can)} kg</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Cannabis</div></div><div class="kpi"><div class="kv" style="font-size:15px">${fmtD(coc)} kg</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Cocaïne</div></div><div class="kpi"><div class="kv" style="font-size:15px">${fmtD(tab)} kg</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Tabac</div></div></div>${drs.length?renderDRBlock(drs,'contentieux'):''}${renderCmt(cm,'contentieux',_curId)}</div></div>`;
 }
 function renderBudget(data,cms){
   const c=CFG.c.B, cm=cms.find(x=>x[CFG.c.CM.bloc]==='budget');
   if(!data.length) return secEmpty('💶','Budget',cm,'full','budget');
+  const annee=anneeAffichee(data,'Annee');
   const types=['Fonctionnement','Investissement','Intervention'];
   const renderType=(label,rows)=>{
     if(!rows.length) return '';
     const r=rows[0];
-    const aen=r[c.ae_n]||0,aed=r[c.ae_d]||0,aec=r[c.ae_c]||0, cpn=r[c.cp_n]||0,cpd=r[c.cp_d]||0,cpc=r[c.cp_c]||0;
+    const aen=n(r[c.ae_n]),aed=n(r[c.ae_d]),aec=n(r[c.ae_c]), cpn=n(r[c.cp_n]),cpd=n(r[c.cp_d]),cpc=n(r[c.cp_c]);
     const pAE=aed?Math.round(aec/aed*100):aen?Math.round(aec/aen*100):0;
     const pCP=cpd?Math.round(cpc/cpd*100):cpn?Math.round(cpc/cpn*100):0;
     const cA=pAE>95?'pf-danger':pAE>80?'pf-warn':'pf-ok', cC=pCP>95?'pf-danger':pCP>80?'pf-warn':'pf-ok';
-    return`<div class="sub-title">${label} — ${r[c.annee]||''}</div><table class="dt" style="margin-bottom:8px"><thead><tr><th></th><th class="tr">Notifiées</th><th class="tr">Mises à dispo</th><th class="tr">Consommées</th><th class="tr">Taux exec.</th></tr></thead><tbody><tr><td class="tbold">AE</td><td class="tr">${fmt(aen)} €</td><td class="tr">${fmt(aed)} €</td><td class="tr">${fmt(aec)} €</td><td class="tc"><div>${pAE}%</div><div class="prog-bar" style="width:70px;display:inline-block;margin-top:2px"><div class="prog-fill ${cA}" style="width:${Math.min(pAE,100)}%"></div></div></td></tr><tr><td class="tbold">CP</td><td class="tr">${fmt(cpn)} €</td><td class="tr">${fmt(cpd)} €</td><td class="tr">${fmt(cpc)} €</td><td class="tc"><div>${pCP}%</div><div class="prog-bar" style="width:70px;display:inline-block;margin-top:2px"><div class="prog-fill ${cC}" style="width:${Math.min(pCP,100)}%"></div></div></td></tr></tbody></table>`;
+    return`<div class="sub-title">${label}</div><table class="dt" style="margin-bottom:8px"><thead><tr><th></th><th class="tr">Notifiées</th><th class="tr">Mises à dispo</th><th class="tr">Consommées</th><th class="tr">Taux exec.</th></tr></thead><tbody><tr><td class="tbold">AE</td><td class="tr">${fmt(aen)} €</td><td class="tr">${fmt(aed)} €</td><td class="tr">${fmt(aec)} €</td><td class="tc"><div>${pAE}%</div><div class="prog-bar" style="width:70px;display:inline-block;margin-top:2px"><div class="prog-fill ${cA}" style="width:${Math.min(pAE,100)}%"></div></div></td></tr><tr><td class="tbold">CP</td><td class="tr">${fmt(cpn)} €</td><td class="tr">${fmt(cpd)} €</td><td class="tr">${fmt(cpc)} €</td><td class="tc"><div>${pCP}%</div><div class="prog-bar" style="width:70px;display:inline-block;margin-top:2px"><div class="prog-fill ${cC}" style="width:${Math.min(pCP,100)}%"></div></div></td></tr></tbody></table>`;
   };
-  return`<div class="section full"><div class="sec-hdr"><span class="ico">💶</span><h3>Budget</h3></div><div class="sec-body">${types.map(t=>renderType(t,data.filter(r=>strVal(r[c.typeb])===t))).join('')}${renderCmt(cm,'contentieux',_curId)}</div></div>`;
+  // Pas de DR dans le budget (géré au niveau DI)
+  return`<div class="section full"><div class="sec-hdr"><span class="ico">💶</span><h3>Budget${annee?' <span style="font-size:11px;font-weight:400;opacity:.7;">— '+annee+'</span>':''}</h3></div><div class="sec-body">${types.map(t=>renderType(t,data.filter(r=>strVal(r[c.typeb])===t))).join('')}${renderCmt(cm,'budget',_curId)}</div></div>`;
 }
-function renderRH(d,cms,drs){
+function renderRH(rhRows,cms,drs,s){
   const c=CFG.c.RH, cm=cms.find(x=>x[CFG.c.CM.bloc]==='rh');
+  // rhRows est un tableau filtré par année — prendre le premier enregistrement
+  const d=rhRows&&rhRows.length?rhRows[0]:null;
   if(!d) return secEmpty('👥','Situation RH',cm,'','rh');
-  const rem=n(d[c.rem]),cib=n(d[c.cib]), pct=cib?Math.round(rem/cib*100):0;
-  return`<div class="section"><div class="sec-hdr"><span class="ico">👥</span><h3>Situation RH</h3></div><div class="sec-body"><div class="kpi-row"><div class="kpi"><div class="kv">${rem}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Eff. rémunérés</div></div><div class="kpi"><div class="kv">${cib}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Eff. cibles</div></div><div class="kpi ${pct<90?'orange':'vert'}"><div class="kv">${pct}%</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Couverture</div></div></div><div class="prog-wrap"><div class="prog-label"><span>${rem}/${cib}</span><span>${pct}%</span></div><div class="prog-bar"><div class="prog-fill ${pct<90?'pf-warn':'pf-ok'}" style="width:${Math.min(pct,100)}%"></div></div></div><div class="kpi-row" style="margin-top:10px"><div class="kpi vert"><div class="kv" style="font-size:14px">${fmt(d[c.ms]||0)} €</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Masse salariale</div></div><div class="kpi"><div class="kv">${fmtD(d[c.jf]||0)}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">J. form./agent</div></div><div class="kpi orange"><div class="kv">${n(d[c.abs])}</div>${(function(){ var mo=(D.moyennes||[])[0]||{}; var absN=nPct(mo[CFG.c.MO.abs_n]); return absN?'<div class="kl" style="font-size:9.5px;color:var(--gris2)">abs. (moy.nat. '+absN+')</div>':'<div class="kl" style="font-size:10.5px;color:var(--gris2)">J. absentéisme</div>'; })()}</div><div class="kpi"><div class="kv">${fmtD(d[c.age]||0)}</div>${(function(){ var mo=(D.moyennes||[])[0]||{}; var ageN=nPct(mo[CFG.c.MO.age_n]); return ageN?'<div class="kl" style="font-size:9.5px;color:var(--gris2)">ans (moy.nat. '+fmtD(ageN)+')</div>':'<div class="kl" style="font-size:10.5px;color:var(--gris2)">Âge moyen</div>'; })()}</div></div>${drs.length?renderDRBlock(drs,'rh'):''}${renderCmt(cm,'rh',_curId)}</div></div>`;
+  const annee=anneeAffichee(rhRows,'Annee');
+  const typeS=s?s[CFG.c.S.type]:'';
+
+  // Colonnes ETPT directes (pas de domaine séparé)
+  const etptAgco=n(d[c.etpt_agco]);
+  const etptSu  =n(d[c.etpt_su]);
+  const etptTot =n(d[c.etpt_tot])||etptAgco+etptSu; // fallback si colonne absente
+
+  // Effectifs cibles : uniquement DI et SIEGE
+  const showCib=['DI','SIEGE'].includes(typeS);
+  const cib=n(d[c.cib]);
+
+  // Masse salariale : DI, DR, SIEGE
+  const showMS=['DI','DR','SIEGE'].includes(typeS);
+  const ms=n(d[c.ms]);
+
+  const jf =n(d[c.jf]);
+  const abs =n(d[c.abs]);
+  const age =n(d[c.age]);
+  const mo=(D.moyennes||[])[0]||{};
+  const absN=nPct(mo[CFG.c.MO.abs_n]);
+  const ageN=nPct(mo[CFG.c.MO.age_n]);
+
+  // Bloc ETPT : toujours afficher AGCO + SU + Total sur une ligne
+  const hasDetail=etptAgco>0||etptSu>0;
+  const etptHtml=hasDetail
+    ?`<div class="kpi"><div class="kv">${etptAgco}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">ETPT AGCO</div></div>`
+     +`<div class="kpi"><div class="kv">${etptSu}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">ETPT SU</div></div>`
+     +`<div class="kpi vert"><div class="kv">${etptTot}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">ETPT total</div></div>`
+    :`<div class="kpi vert"><div class="kv">${etptTot}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">ETPT</div></div>`;
+
+  const cibHtml=showCib&&cib
+    ?`<div class="kpi"><div class="kv">${cib}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Eff. cibles</div></div>`
+    :'';
+
+  const msHtml=showMS&&ms
+    ?`<div class="kpi vert"><div class="kv" style="font-size:13px">${fmt(ms)} €</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Masse salariale</div></div>`
+    :'';
+
+  return`<div class="section"><div class="sec-hdr"><span class="ico">👥</span><h3>Situation RH${annee?' <span style="font-size:11px;font-weight:400;opacity:.7;">— '+annee+'</span>':''}</h3></div><div class="sec-body">
+    <div class="kpi-row">
+      ${etptHtml}${cibHtml}${msHtml}
+      <div class="kpi"><div class="kv">${fmtD(jf)}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">J. form./agent</div></div>
+      <div class="kpi orange"><div class="kv">${abs}</div><div class="kl" style="font-size:${absN?'9.5':'10.5'}px;color:var(--gris2)">${absN?'abs. (nat. '+absN+')':'J. absentéisme'}</div></div>
+      <div class="kpi"><div class="kv">${fmtD(age)}</div><div class="kl" style="font-size:${ageN?'9.5':'10.5'}px;color:var(--gris2)">${ageN?'ans (nat. '+fmtD(ageN)+')':'Âge moyen'}</div></div>
+    </div>
+    ${drs.length?renderDRBlock(drs,'rh'):''}
+    ${renderCmt(cm,'rh',_curId)}
+  </div></div>`;
 }
 function renderImmobilier(sites,cms){
   const c=CFG.c.IM, cm=cms.find(x=>x[CFG.c.CM.bloc]==='immobilier');
@@ -1880,7 +2019,7 @@ function renderVehicules(v,cms,drs){
   const clsV=vs>vn?'rouge':vs>vn*.8?'orange':'vert';
   const vsTag=vs>vn?`<span class="vs-nat vs-bad">▲ +${(vs-vn).toFixed(0)} pts vs national</span>`:`<span class="vs-nat vs-ok">▼ ${(vn-vs).toFixed(0)} pts vs national</span>`;
   const psTag=ps>pn?`<span class="vs-nat vs-bad">▲ +${(ps-pn).toFixed(2)} vs national</span>`:`<span class="vs-nat vs-ok">▼ ${(pn-ps).toFixed(2)} vs national</span>`;
-  return`<div class="section"><div class="sec-hdr"><span class="ico">🚗</span><h3>Parc de véhicules</h3></div><div class="sec-body"><div class="kpi-row"><div class="kpi"><div class="kv">${nb}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Véhicules</div></div><div class="kpi ${clsV}"><div class="kv">${vs}%</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Vétusté structure</div></div><div class="kpi"><div class="kv" style="font-size:15px;color:var(--gris2)">${vn}%</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Vétusté nationale</div></div></div><div style="margin:4px 0 10px">${vsTag}</div><div class="prog-wrap"><div class="prog-label"><span>Vétusté structure</span><span>${vs}%</span></div><div class="prog-bar"><div class="prog-fill ${vs>40?'pf-danger':vs>25?'pf-warn':'pf-ok'}" style="width:${vs}%"></div></div></div><div class="kpi-row" style="margin-top:10px"><div class="kpi ${ps>pn?'rouge':'vert'}"><div class="kv">${ps.toFixed(2)}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Véh./agent (struct.)</div></div><div class="kpi"><div class="kv" style="font-size:15px;color:var(--gris2)">${pn.toFixed(2)}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Véh./agent (nat.)</div></div></div><div style="margin:4px 0 8px">${psTag}</div>${drs.length?renderDRBlock(drs,'vehicules'):''}${renderCmt(cm,'vehicules',_curId)}</div></div>`;
+  return`<div class="section"><div class="sec-hdr"><span class="ico">🚗</span><h3>Parc de véhicules${vh?" <span style=\"font-size:11px;font-weight:400;opacity:.7;\">— "+n(vh[c.annee])+"</span>":""}</h3></div><div class="sec-body"><div class="kpi-row"><div class="kpi"><div class="kv">${nb}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Véhicules</div></div><div class="kpi ${clsV}"><div class="kv">${vs}%</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Vétusté structure</div></div><div class="kpi"><div class="kv" style="font-size:15px;color:var(--gris2)">${vn}%</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Vétusté nationale</div></div></div><div style="margin:4px 0 10px">${vsTag}</div><div class="prog-wrap"><div class="prog-label"><span>Vétusté structure</span><span>${vs}%</span></div><div class="prog-bar"><div class="prog-fill ${vs>40?'pf-danger':vs>25?'pf-warn':'pf-ok'}" style="width:${vs}%"></div></div></div><div class="kpi-row" style="margin-top:10px"><div class="kpi ${ps>pn?'rouge':'vert'}"><div class="kv">${ps.toFixed(2)}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Véh./agent (struct.)</div></div><div class="kpi"><div class="kv" style="font-size:15px;color:var(--gris2)">${pn.toFixed(2)}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Véh./agent (nat.)</div></div></div><div style="margin:4px 0 8px">${psTag}</div>${drs.length?renderDRBlock(drs,'vehicules'):''}${renderCmt(cm,'vehicules',_curId)}</div></div>`;
 }
 function renderFraisMission(data,cms){
   const c=CFG.c.FM, cm=cms.find(x=>x[CFG.c.CM.bloc]==='fraisMission');
@@ -1940,13 +2079,21 @@ function toggleDR(uid){const el=document.getElementById(uid);const tog=el.previo
 function renderCmt(cm, bloc, structId) {
   const txt = cm ? cm[CFG.c.CM.txt] : '';
   const cmId = cm ? cm.id : null;
+  // Date de dernière modification (colonne DateMAJ dans Commentaires)
+  const majRaw = cm ? cm[CFG.c.CM.maj] : null;
+  const majStr = majRaw ? (function(){
+    try {
+      const d = new Date(majRaw);
+      return isNaN(d.getTime()) ? majRaw : d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'});
+    } catch(e){ return String(majRaw); }
+  })() : '';
   const uid = 'cmt-' + bloc + '-' + (structId||0);
   const canEdit = typeof grist !== 'undefined' && typeof grist.docApi !== 'undefined';
   const editBtn = canEdit
     ? `<button class="edit-btn" onclick="toggleEdit('${uid}')" title="Modifier">✏️</button>`
     : '';
   return `<div class="comment-zone">
-    <div class="comment-label"><span>💬 Commentaire</span>${editBtn}</div>
+    <div class="comment-label"><span>💬 Commentaire${majStr?' <span style="font-size:9.5px;color:var(--gris3);font-weight:400;margin-left:6px;">modifié le '+majStr+'</span>':''}</span>${editBtn}</div>
     <div class="comment-text" id="${uid}-text">${txt||'<span class="comment-empty">Aucun commentaire.</span>'}</div>
     <div class="edit-zone" id="${uid}-zone">
       <textarea class="edit-textarea" id="${uid}-ta" rows="3">${txt||''}</textarea>
@@ -1995,16 +2142,19 @@ async function saveComment(uid, bloc, structId, cmId) {
 
     if (cmId && cmId !== 'null') {
       // Mise à jour de la ligne existante
+      const today=new Date().toISOString().slice(0,10);
       await grist.docApi.applyUserActions([
-        ['UpdateRecord', tableName, parseInt(cmId), { [CFG.c.CM.txt]: newTxt }]
+        ['UpdateRecord', tableName, parseInt(cmId), { [CFG.c.CM.txt]: newTxt, [CFG.c.CM.maj]: today }]
       ]);
     } else {
       // Création d'une nouvelle ligne
+      const today2=new Date().toISOString().slice(0,10);
       await grist.docApi.applyUserActions([
         ['AddRecord', tableName, null, {
           [CFG.c.CM.struct]: structId,
           [CFG.c.CM.bloc]:   bloc,
-          [CFG.c.CM.txt]:    newTxt
+          [CFG.c.CM.txt]:    newTxt,
+          [CFG.c.CM.maj]:    today2
         }]
       ]);
     }
