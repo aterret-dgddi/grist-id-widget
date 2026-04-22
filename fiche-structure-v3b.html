@@ -1305,12 +1305,37 @@ function renderDropdownList(query){
   focusedOptIdx = -1;
 }
 
+function toggleDropdown(){
+  const dd = document.getElementById('sel-dropdown');
+  const chev = document.getElementById('sel-chevron');
+  const inp = document.getElementById('sel-input');
+
+  if (dd.classList.contains('open')) {
+    closeDropdown();
+  } else {
+    dd.classList.add('open');
+    chev.classList.add('up');
+    inp.classList.add('open');
+    document.getElementById('sel-search').value = '';
+    renderDropdownList('');
+    setTimeout(() => document.getElementById('sel-search').focus(), 50);
+  }
+}
+
+function closeDropdown(){
+  document.getElementById('sel-dropdown').classList.remove('open');
+  document.getElementById('sel-chevron').classList.remove('up');
+  document.getElementById('sel-input').classList.remove('open');
+}
+
+
+
 function selectStructure(id){
   const S = D.structures || [];
   current = S.find(s => s.id == id);
   if (!current) return;
 
-  document.getElementById('sel-input').value = current[CFG.c.S.sigle] || '';
+  document.getElementById('sel-input').value = current[CFG.c.S.nom] || '';
   closeDropdown();
 
   const type = current[CFG.c.S.type];
