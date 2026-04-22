@@ -1200,6 +1200,15 @@ function build(){
    DROPDOWN — LISTE DES STRUCTURES (SIGLES + TRI REGION)
 ═══════════════════════════════════════════════════════ */
 
+function selectorStructures(){
+  if(!_fBySigle) fBuildIdx();
+  const TYPES_OK = new Set(['Siège','SIEGE','siège','DI','SCN','DR']);
+  return (D.structures || []).filter(function(s){
+    return TYPES_OK.has(strVal(s[CFG.c.S.type]));
+  });
+}
+
+
 function buildDropdown(){
   renderDropdownList('');
   document.addEventListener('click', e => {
