@@ -196,6 +196,9 @@ body{font-family:'Cabin',sans-serif;background:#F2F5FA;color:var(--gris1);line-h
 .qnav-btn:hover{background:var(--rep-pale);border-color:var(--rep2);color:var(--rep);}
 .qnav-btn.active{background:var(--rep);border-color:var(--rep);color:#fff;}
 
+
+
+
 /* ══════════════════════════════════
    MODAL EXPORT PDF
 ══════════════════════════════════ */
@@ -1486,6 +1489,10 @@ function selectStructure(id){
   document.querySelectorAll('.qnav-btn').forEach(b => {
     b.classList.toggle('active', parseInt(b.dataset.id) === id);
   });
+  
+  const region = current[CFG.c.S.region];
+const btn = document.querySelector(`.qnav-btn[data-id="${current.id}"]`);
+if (btn) btn.classList.add('active');
 
   renderFiche(current);
 }
@@ -1502,19 +1509,34 @@ function buildQuickNav() {
 
   const S = D.structures || [];
 
-  const regions = ["Siège", "DI", "Outremer", "SCN"];
+  const ordreRegion = ["Siège", "DI", "Outremer", "SCN"];
 
-  const existantes = regions.filter(r =>
-    S.some(s => (s[CFG.c.S.region] || "").trim() === r)
+  // Filtrer uniquement les structures ayant une région valide
+  const filtrées = S.filter(s =>
+    ordreRegion.includes((s[CFG.c.S.region] || "").trim())
   );
 
+  // Trier par région puis par sigle
+  const triées = filtrées.slice().sort((a, b) => {
+    const rA = ordreRegion.indexOf(a[CFG.c.S.region]);
+    const rB = ordreRegion.indexOf(b[CFG.c.S.region]);
+    if (rA !== rB) return rA - rB;
+
+    const sA = (a[CFG.c.S.sigle] || "").toUpperCase();
+    const sB = (b[CFG.c.S.sigle] || "").toUpperCase();
+    return sA.localeCompare(sB);
+  });
+
   let html = "";
-  existantes.forEach(region => {
+  triées.forEach(s => {
+    const region = s[CFG.c.S.region];
+    const sigle = s[CFG.c.S.sigle] || "";
     html += `
       <button class="qnav-btn ${region}"
+              data-id="${s.id}"
               data-region="${region}"
-              onclick="selectFirstOfRegion('${region}')">
-        ${region}
+              onclick="selectStructure(${s.id})">
+        ${sigle}
       </button>`;
   });
 
