@@ -1474,6 +1474,7 @@ function selectStructure(id){
 /* ==== 1. Sélecteur rapide : sigle uniquement ==== */
 
 function buildQuickNav() {
+console.log("QNAV:", D.structures);
   const cont = document.getElementById('qnav');
   if (!cont || !D || !D.structures) return;
 
