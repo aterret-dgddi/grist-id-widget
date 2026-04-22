@@ -1399,7 +1399,24 @@ function navKeys(e){
   else if (e.key === 'Enter'){
     e.preventDefault();
     if (focusedOptIdx >= 0){
-      selectStructure(filtered
+      selectStructure(filteredOptions[focusedOptIdx].id);
+    }
+    return;
+  }
+  else {
+    return;
+  }
+
+  const opts = document.querySelectorAll('.sel-option');
+  opts.forEach(o => o.classList.remove('focused'));
+
+  if (focusedOptIdx >= 0){
+    const opt = opts[focusedOptIdx];
+    opt.classList.add('focused');
+    opt.scrollIntoView({ block: 'nearest' });
+  }
+}
+
 
 function selectStructure(id){
   const S = D.structures || [];
