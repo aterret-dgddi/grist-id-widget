@@ -568,7 +568,7 @@ body{font-family:'Cabin',sans-serif;background:#F2F5FA;color:var(--gris1);line-h
 .info-ref {
   margin-top: 6px;
   font-size: 10.5px;
-  color: var(--gris3);
+  color: var(--gris2);
 }
 
 .info-ref-item {
@@ -581,8 +581,11 @@ body{font-family:'Cabin',sans-serif;background:#F2F5FA;color:var(--gris1);line-h
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--gris3);
 }
+
+.info-ref-dot.type { background: var(--rep); }   /* bleu = moyenne du type */
+.info-ref-dot.nat  { background: var(--vert); }  /* vert = moyenne nationale */
+
 
 
 /* print */
@@ -2762,124 +2765,152 @@ function renderFraisMission(data,cms){
 ════════════════════════════════════════════════════ */
 function renderInformatique(s, cm_list){
   if(!_fBySigle) fBuildIdx();
-  const c=CFG.c.IT;
-  const cm=cm_list.find(function(x){return x[CFG.c.CM.bloc]==='informatique';});
-  const typeS=strVal(s[CFG.c.S.type]);
-  const sigle=strVal(s[CFG.c.S.sigle]||'').trim();
+  const c = CFG.c.IT;
+  const cm = cm_list.find(x => x[CFG.c.CM.bloc] === 'informatique');
+  const typeS = strVal(s[CFG.c.S.type]);
+  const sigle = strVal(s[CFG.c.S.sigle] || '').trim();
 
-  // Ne s'affiche que pour DI, SCN, DR autonomes
-  const TYPES_IT=new Set(['DI','SCN','Siège','siège','SIEGE','DR']);
+  // Affiché uniquement pour DI, SCN, DR autonomes, Siège
+  const TYPES_IT = new Set(['DI','SCN','Siège','siège','SIEGE','DR']);
   if(!TYPES_IT.has(typeS)) return '';
 
-  const ANNEES=[2022,2023,2024,2025];
-  const itAll=D.informatique||[];
-  const rhAll=D.rh||[];
+  const ANNEES = [2022, 2023, 2024, 2025];
+  const itAll = D.informatique || [];
+  const rhAll = D.rh || [];
 
-  // Données informatiques pour cette structure (sans consolidation filles)
-  const itRows=itAll.filter(function(r){return n(r[c.struct])===s.id;});
+  // Données informatiques pour cette structure
+  const itRows = itAll.filter(r => n(r[c.struct]) === s.id);
   if(!itRows.length) return secEmpty('💻','Informatique',null,'','informatique');
 
-  // ETPT consolidé pour chaque année (DI = propre + filles DR)
+  // ETPT consolidé (DI = propre + filles DR)
   function etptAnnee(annee){
-    var all=[s].concat(fDescendants(s));
-    var total=0;
-    all.forEach(function(d){
-      var row=rhAll.find(function(r){return n(r[CFG.c.RH.struct])===d.id&&Number(r[CFG.c.RH.annee])===annee;});
-      if(row) total+=Math.round(n(row[CFG.c.RH.etpt_tot])||n(row[CFG.c.RH.etpt_su])+n(row[CFG.c.RH.etpt_agco]));
+    var all = [s].concat(fDescendants(s));
+    var total = 0;
+    all.forEach(d => {
+      var row = rhAll.find(r => n(r[CFG.c.RH.struct]) === d.id && Number(r[CFG.c.RH.annee]) === annee);
+      if(row) total += Math.round(n(row[CFG.c.RH.etpt_tot]) || n(row[CFG.c.RH.etpt_su]) + n(row[CFG.c.RH.etpt_agco]));
     });
     return total;
   }
 
   // Données par année
-  var data=ANNEES.map(function(annee){
-    var row=itRows.find(function(r){return Number(r[c.annee])===annee;});
-    var etpt=etptAnnee(annee);
-    var dep=row?n(row[c.dep]):null;
-    var pcp=row?n(row[c.pcp]):null;
-    var pcb=row?n(row[c.pcb]):null;
-    var pctot=(pcp!==null&&pcb!==null)?pcp+pcb:null;
-    var taux=(pctot!==null&&etpt>0)?(pctot/etpt*100):null;
-    return {annee:annee, dep:dep, pcp:pcp, pcb:pcb, pctot:pctot, etpt:etpt, taux:taux};
+  var data = ANNEES.map(annee => {
+    var row = itRows.find(r => Number(r[c.annee]) === annee);
+    var etpt = etptAnnee(annee);
+    var dep = row ? n(row[c.dep]) : null;
+    var pcp = row ? n(row[c.pcp]) : null;
+    var pcb = row ? n(row[c.pcb]) : null;
+    var pctot = (pcp !== null && pcb !== null) ? pcp + pcb : null;
+    var taux = (pctot !== null && etpt > 0) ? (pctot / etpt * 100) : null;
+    return { annee, dep, pcp, pcb, pctot, etpt, taux };
   });
 
-  var anneesConso=data.filter(function(d){return d.dep!==null;});
-  // Coût moyen 4 ans = moy(dépenses) / moy(ETPT) sur les années avec données
-  var moyDep=anneesConso.length?anneesConso.reduce(function(s,d){return s+(d.dep||0);},0)/anneesConso.length:0;
-  var etptArr=anneesConso.map(function(d){return d.etpt;}).filter(Boolean);
-  var moyEtpt=etptArr.length?etptArr.reduce(function(a,b){return a+b;},0)/etptArr.length:0;
-  var coutMoyen4ans=moyEtpt>0?Math.round(moyDep/moyEtpt):null;
+  var anneesConso = data.filter(d => d.dep !== null);
 
-  // Taux équipement année la plus récente avec données
-  var derniere=anneesConso[anneesConso.length-1];
-  var tauxEquip=derniere?derniere.taux:null;
+  // Coût moyen 4 ans
+  var moyDep = anneesConso.length ? anneesConso.reduce((s,d)=>s+(d.dep||0),0)/anneesConso.length : 0;
+  var etptArr = anneesConso.map(d => d.etpt).filter(Boolean);
+  var moyEtpt = etptArr.length ? etptArr.reduce((a,b)=>a+b,0)/etptArr.length : 0;
+  var coutMoyen4ans = moyEtpt > 0 ? Math.round(moyDep / moyEtpt) : null;
 
-  // Moyennes de référence depuis D.moyennes
-  var mo=(D.moyennes||[])[0]||{};
-  var SIGLES_OM=new Set(['DI 972','DR 974','DR 976','DR 988','DR 987']);
-  // Ajouter Saint-Pierre (pas de sigle fixe — chercher par nom)
-  var spm=(D.structures||[]).find(function(x){return (x.Nom||x.nom||'').indexOf('Pierre')!==-1;});
-  if(spm) SIGLES_OM.add(strVal(spm[CFG.c.S.sigle]||'').trim());
+  // Taux équipement année la plus récente
+  var derniere = anneesConso[anneesConso.length - 1];
+  var tauxEquip = derniere ? derniere.taux : null;
 
-  var isOM=SIGLES_OM.has(sigle);
+  // Moyennes de référence
+  var mo = (D.moyennes || [])[0] || {};
+  var SIGLES_OM = new Set(['DI 972','DR 974','DR 976','DR 988','DR 987']);
+  var spm = (D.structures || []).find(x => (x.Nom || x.nom || '').indexOf('Pierre') !== -1);
+  if(spm) SIGLES_OM.add(strVal(spm[CFG.c.S.sigle] || '').trim());
+
   var refLabel, refDep, refTaux;
-  if(typeS==='DI'||typeS==='Siège'||['siège','SIEGE'].includes(typeS)){
-    refLabel='Moy. DI';
-    refDep=nPct(mo[CFG.c.MO.info_dep_di])||calculerMoyRef('DI',null);
-    refTaux=nPct(mo[CFG.c.MO.info_tx_di])||calculerTauxRef('DI',null);
-  } else if(typeS==='SCN'){
-    refLabel='Moy. SCN';
-    refDep=nPct(mo[CFG.c.MO.info_dep_scn])||calculerMoyRef('SCN',null);
-    refTaux=nPct(mo[CFG.c.MO.info_tx_scn])||calculerTauxRef('SCN',null);
+
+  if(typeS === 'DI' || typeS === 'Siège' || ['siège','SIEGE'].includes(typeS)){
+    refLabel = 'Moy. DI';
+    refDep = nPct(mo[CFG.c.MO.info_dep_di]) || calculerMoyRef('DI', null);
+    refTaux = nPct(mo[CFG.c.MO.info_tx_di]) || calculerTauxRef('DI', null);
+  } else if(typeS === 'SCN'){
+    refLabel = 'Moy. SCN';
+    refDep = nPct(mo[CFG.c.MO.info_dep_scn]) || calculerMoyRef('SCN', null);
+    refTaux = nPct(mo[CFG.c.MO.info_tx_scn]) || calculerTauxRef('SCN', null);
   } else {
-    refLabel='Moy. Outremer';
-    refDep=nPct(mo[CFG.c.MO.info_dep_om])||calculerMoyRef('DR',SIGLES_OM);
-    refTaux=nPct(mo[CFG.c.MO.info_tx_om])||calculerTauxRef('DR',SIGLES_OM);
+    refLabel = 'Moy. Outremer';
+    refDep = nPct(mo[CFG.c.MO.info_dep_om]) || calculerMoyRef('DR', SIGLES_OM);
+    refTaux = nPct(mo[CFG.c.MO.info_tx_om]) || calculerTauxRef('DR', SIGLES_OM);
   }
 
+  // Moyenne nationale (nouveau)
+  var refDepNat = nPct(mo[CFG.c.MO.info_dep_nat]) || calculerMoyRef(null, null);
+  var refTauxNat = nPct(mo[CFG.c.MO.info_tx_nat]) || calculerTauxRef(null, null);
+
   // Tableau 4 années
-  var lignes=['DepensesBureautique','NbPCPortable','NbPCBureau','TotalPC','ETPT','TauxEquip'];
-  var libelles={'DepensesBureautique':'Dépenses (€)','NbPCPortable':'PC Portable','NbPCBureau':'PC Bureau','TotalPC':'Total PC','ETPT':'ETPT','TauxEquip':'Taux équip. (%)'};
+  var libelles = {
+    'Dépenses (€)': 'Dépenses (€)',
+    'PC Portable': 'PC Portable',
+    'PC Bureau': 'PC Bureau',
+    'Total PC': 'Total PC',
+    'ETPT': 'ETPT',
+    'Taux équip. (%)': 'Taux équip. (%)'
+  };
 
-  var tblCols='<div class="info-annee-col"><div class="info-annee-hdr">Indicateur</div>'
-    +Object.values(libelles).map(function(l){return '<div class="info-row-lbl">'+l+'</div>';}).join('')
-    +'</div>';
+  var tblCols = '<div class="info-annee-col"><div class="info-annee-hdr">Indicateur</div>'
+    + Object.values(libelles).map(l => '<div class="info-row-lbl">'+l+'</div>').join('')
+    + '</div>';
 
-  data.forEach(function(d){
-    var vals=[
-      d.dep!==null?fmt(Math.round(d.dep))+' €':'—',
-      d.pcp!==null?d.pcp:'—',
-      d.pcb!==null?d.pcb:'—',
-      d.pctot!==null?d.pctot:'—',
-      d.etpt||'—',
-      d.taux!==null?d.taux.toFixed(1)+'%':'—',
+  data.forEach(d => {
+    var vals = [
+      d.dep !== null ? fmt(Math.round(d.dep))+' €' : '—',
+      d.pcp !== null ? d.pcp : '—',
+      d.pcb !== null ? d.pcb : '—',
+      d.pctot !== null ? d.pctot : '—',
+      d.etpt || '—',
+      d.taux !== null ? d.taux.toFixed(1)+'%' : '—',
     ];
-    tblCols+='<div class="info-annee-col">'
-      +'<div class="info-annee-hdr">'+d.annee+'</div>'
-      +vals.map(function(v){return '<div class="info-annee-val">'+v+'</div>';}).join('')
-      +'</div>';
+    tblCols += '<div class="info-annee-col">'
+      + '<div class="info-annee-hdr">'+d.annee+'</div>'
+      + vals.map(v => '<div class="info-annee-val">'+v+'</div>').join('')
+      + '</div>';
   });
 
-  // Indicateurs synthèse
-  var clsDep=refDep&&coutMoyen4ans?(coutMoyen4ans>refDep*1.1?'rouge':coutMoyen4ans<refDep*0.9?'vert':''):'';
-  var clsTaux=refTaux&&tauxEquip?(tauxEquip<refTaux*0.9?'rouge':tauxEquip>refTaux*1.1?'vert':''):'';
+  // Coloration KPI
+  var clsDep = refDep && coutMoyen4ans ? (coutMoyen4ans > refDep*1.1 ? 'rouge' : coutMoyen4ans < refDep*0.9 ? 'vert' : '') : '';
+  var clsTaux = refTaux && tauxEquip ? (tauxEquip < refTaux*0.9 ? 'rouge' : tauxEquip > refTaux*1.1 ? 'vert' : '') : '';
 
-  return '<div class="section full"><div class="sec-hdr"><span class="ico">💻</span><h3>Informatique bureautique</h3></div><div class="sec-body">'
-    +'<div class="info-annees">'+tblCols+'</div>'
-    +'<div class="info-indicateurs">'
-    +'<div class="info-kpi-card">'
-    +'<div class="info-kpi-val '+(clsTaux)+'">'+(tauxEquip!==null?tauxEquip.toFixed(1)+'%':'—')+'</div>'
-    +'<div class="info-kpi-lbl">Taux d\'équipement ('+ANNEES[ANNEES.length-1]+')</div>'
-    +(refTaux?'<div class="info-ref"><span class="info-ref-item"><span class="info-ref-dot" style="background:var(--gris3)"></span>'+refLabel+' : '+refTaux.toFixed(1)+'%</span></div>':'')
-    +'</div>'
-    +'<div class="info-kpi-card">'
-    +'<div class="info-kpi-val '+(clsDep)+'">'+(coutMoyen4ans!==null?fmt(coutMoyen4ans)+' €':'—')+'</div>'
-    +'<div class="info-kpi-lbl">Coût moyen par ETPT (2022-2025)</div>'
-    +(refDep?'<div class="info-ref"><span class="info-ref-item"><span class="info-ref-dot" style="background:var(--gris3)"></span>'+refLabel+' : '+fmt(Math.round(refDep))+' €</span></div>':'')
-    +'</div>'
-    +'</div>'
-    +(cm?renderCmt(cm,'informatique',_curId):'')
-    +'</div></div>';
+  return `
+  <div class="section full">
+    <div class="sec-hdr"><span class="ico">💻</span><h3>Informatique bureautique</h3></div>
+    <div class="sec-body">
+
+      <div class="info-annees">${tblCols}</div>
+
+      <div class="info-indicateurs">
+
+        <div class="info-kpi-card">
+          <div class="info-kpi-val ${clsTaux}">${tauxEquip!==null?tauxEquip.toFixed(1)+'%':'—'}</div>
+          <div class="info-kpi-lbl">Taux d'équipement (${ANNEES[ANNEES.length-1]})</div>
+          <div class="info-ref">
+            <span class="info-ref-item"><span class="info-ref-dot type"></span>${refLabel} : ${refTaux?refTaux.toFixed(1)+'%':'—'}</span>
+            <span class="info-ref-item"><span class="info-ref-dot nat"></span>Moy. nationale : ${refTauxNat?refTauxNat.toFixed(1)+'%':'—'}</span>
+          </div>
+        </div>
+
+        <div class="info-kpi-card">
+          <div class="info-kpi-val ${clsDep}">${coutMoyen4ans!==null?fmt(coutMoyen4ans)+' €':'—'}</div>
+          <div class="info-kpi-lbl">Coût moyen par ETPT (2022-2025)</div>
+          <div class="info-ref">
+            <span class="info-ref-item"><span class="info-ref-dot type"></span>${refLabel} : ${refDep?fmt(Math.round(refDep))+' €':'—'}</span>
+            <span class="info-ref-item"><span class="info-ref-dot nat"></span>Moy. nationale : ${refDepNat?fmt(Math.round(refDepNat))+' €':'—'}</span>
+          </div>
+        </div>
+
+      </div>
+
+      ${(cm?renderCmt(cm,'informatique',_curId):'')}
+
+    </div>
+  </div>`;
 }
+
 
 /* Calcule dynamiquement la moyenne de référence pour un type de structure */
 function calculerMoyRef(typeRef, siglesOM){
