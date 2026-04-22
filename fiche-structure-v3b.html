@@ -1203,6 +1203,14 @@ function build(){
 var _fBySigle = null;
 var _fById = null;
 
+const HIER_FICHE = {
+  TYPES_PARENT: new Set(['DI','SCN','Siège','siège','SIEGE']),
+  // DR incluses : les DR autonomes (NC, Polynésie...) peuvent avoir des filles
+  TYPES_AVEC_FILLES: new Set(['DI','SCN','Siège','siège','SIEGE','DR']),
+};
+
+
+
 function fBuildIdx(){
   _fBySigle = {};
   _fById = {};
@@ -1215,21 +1223,6 @@ function fBuildIdx(){
   });
 }
 
-/* ═══════════════════════════════════════════════════════
-   INDEX & HIÉRARCHIE STRUCTURES
-═══════════════════════════════════════════════════════ */
-
-var _fBySigle = null, _fById = null;
-
-function fBuildIdx(){
-  _fBySigle = {};
-  _fById = {};
-  (D.structures || []).forEach(function(s){
-    _fById[s.id] = s;
-    var sg = strVal(s[CFG.c.S.sigle] || '').trim();
-    if (sg) _fBySigle[sg] = s;
-  });
-}
 
 function fParentOf(s){
   if (!_fBySigle) fBuildIdx();
