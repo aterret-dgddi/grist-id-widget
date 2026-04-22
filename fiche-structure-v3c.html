@@ -490,7 +490,7 @@ body{font-family:'Cabin',sans-serif;background:#F2F5FA;color:var(--gris1);line-h
     <div id="sel-dropdown">
       <div id="sel-search-wrap">
         <span class="search-icon">🔍</span>
-        <input type="text" id="sel-search" placeholder="Rechercher par nom, région, responsable…" oninput="filterOptions(this.value)" onkeydown="navKeys(event)">
+        <input type="text" id="sel-search" placeholder="Rechercher par nom, région, responsable…" oninput="renderDropdownList(this.value)" onkeydown="navKeys(event)">
       </div>
       <div id="sel-list"></div>
     </div>
