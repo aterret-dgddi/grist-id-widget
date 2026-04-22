@@ -2837,7 +2837,10 @@ function renderInformatique(s, cm_list){
   var tauxEquip = derniere ? derniere.taux : null;
 
   // Moyennes de référence
-  var mo = (D.moyennes || [])[0] || {};
+var mo = (D.moyennes || []).find(x => Number(x.Annee) === ANNEES[ANNEES.length-1]) 
+         || (D.moyennes || [])[0] 
+         || {};
+
   var SIGLES_OM = new Set(['DI 972','DR 974','DR 976','DR 988','DR 987']);
   var spm = (D.structures || []).find(x => (x.Nom || x.nom || '').indexOf('Pierre') !== -1);
   if(spm) SIGLES_OM.add(strVal(spm[CFG.c.S.sigle] || '').trim());
