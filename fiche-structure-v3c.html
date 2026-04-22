@@ -70,24 +70,27 @@ body{font-family:'Cabin',sans-serif;background:#F2F5FA;color:var(--gris1);line-h
 
 .qnav-btn {
   border: none;
-  padding: 4px 12px;
-  border-radius: 14px;
-  font-size: 13px;
+  padding: 2px 8px;          /* plus compact */
+  border-radius: 12px;       /* pill plus fin */
+  font-size: 11px;           /* texte réduit */
   cursor: pointer;
-  margin: 3px 4px;
+  margin: 2px 3px;           /* espace réduit */
   color: white;
   font-weight: 600;
   white-space: nowrap;
+  line-height: 1.2;          /* hauteur réduite */
 }
 
+/* Couleurs par région */
 .qnav-btn.Siège     { background: #003366; }
 .qnav-btn.DI        { background: #007bff; }
 .qnav-btn.Outremer  { background: #6f42c1; }
 .qnav-btn.SCN       { background: #198754; }
 
+/* État actif */
 .qnav-btn.active {
   outline: 2px solid #fff;
-  box-shadow: 0 0 4px rgba(0,0,0,0.3);
+  box-shadow: 0 0 4px rgba(0,0,0,0.25);
   filter: brightness(1.15);
 }
 
