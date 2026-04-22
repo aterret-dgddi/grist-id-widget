@@ -2314,7 +2314,7 @@ function renderRH(rhRows,cms,drs,s){
 
   // Afficher le bloc même sans données propres (message 'Aucune donnée' pour les DR)
   const filles=IS_PARENT?fEnfantsDe(s):[];
-  const rhAll=fA(D.rh||[]);
+  const rhAll=fArr(D.rh||[]);
   const fillesAvecDonnees=filles.filter(function(f){return rhAll.some(function(r){return n(r[c.struct])===f.id;});});
   // Masquer uniquement si DI/SCN/Siège sans aucune fille avec données
   if(IS_PARENT&&!own&&!fillesAvecDonnees.length) return secEmpty('👥','Situation RH',cm,'','rh');
@@ -2356,7 +2356,7 @@ function renderRH(rhRows,cms,drs,s){
   // Tableau de répartition par fille (DI → DR, DR autonome → ses filles)
   let repTable='';
   if(IS_PARENT&&fillesAvecDonnees.length>0){
-    const rhFiltAll=fA(D.rh||[]);
+    const rhFiltAll=fArr(D.rh||[]);
     const lignes=fillesAvecDonnees.map(function(f){
       const rf=rhFiltAll.find(function(r){return n(r[c.struct])===f.id;});
       if(!rf) return '';
@@ -2470,7 +2470,7 @@ function renderVehicules(v,cms,drs,s){
   if(!_fBySigle) fBuildIdx();
   const typeS=strVal(s?s[CFG.c.S.type]:'');
   const IS_PARENT=HIER_FICHE.TYPES_AVEC_FILLES.has(typeS);
-  const vhAll=fA(D.vehicules||[]);
+  const vhAll=fArr(D.vehicules||[]);
 
   // Si pas de données → masquer
   const filles=IS_PARENT?fEnfantsDe(s):[];
