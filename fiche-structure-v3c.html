@@ -887,10 +887,29 @@ const CFG={
     IM:{struct:'Structure',site:'NomSite',occ:'TypeOccupation',adr:'Adresse',m2:'M2Occupes',cout:'CoutGestionM2',loyer:'LoyerAnnuel'},
     VH:{struct:'Structure',nb:'NbVehicules',vet_s:'TauxVetusteStructure',vpa_s:'VehiculesParAgent',annee:'Annee'},
     // Moyennes nationales lues depuis la table Moyennes (formules Grist)
-    MO:{vet_n:'TauxVetusteMoyenNational',vpa_n:'VehiculesMoyenNational',age_n:'AgeMoyenNational',abs_n:'AbsenteismeMoyenNational',jf_n:'JoursFormationMoyenNational',cae_n:'ConsoAEMoyenNational',ccp_n:'ConsoCPMoyenNational',annee:'Annee',
-    // Moyennes informatique (calculées dynamiquement et stockées)
-    info_dep_di:'DepenseMoyenneDI',info_dep_scn:'DepenseMoyenneSCN',info_dep_om:'DepenseMoyenneOM',
-    info_tx_di:'TauxEquipMoyenDI',info_tx_scn:'TauxEquipMoyenSCN',info_tx_om:'TauxEquipMoyenOM'},
+    MO:{
+  vet_n:'TauxVetusteMoyenNational',
+  vpa_n:'VehiculesMoyenNational',
+  age_n:'AgeMoyenNational',
+  abs_n:'AbsenteismeMoyenNational',
+  jf_n:'JoursFormationMoyenNational',
+  cae_n:'ConsoAEMoyenNational',
+  ccp_n:'ConsoCPMoyenNational',
+  annee:'Annee',
+
+  // Moyennes informatique (calculées dynamiquement et stockées)
+  info_dep_di:'DepenseMoyenneDI',
+  info_dep_scn:'DepenseMoyenneSCN',
+  info_dep_om:'DepenseMoyenneOM',
+  info_tx_di:'TauxEquipMoyenDI',
+  info_tx_scn:'TauxEquipMoyenSCN',
+  info_tx_om:'TauxEquipMoyenOM',
+
+  // ⭐⭐ NOUVEAU : MOYENNE NATIONALE ⭐⭐
+  info_dep_nat: 'DepensesBureautiqueMoyenNational',
+  info_tx_nat: 'TauxEquipementMoyenNational'
+},
+
     FM:{struct:'Structure',type:'TypeMission',annee:'Annee',mt:'MontantTotal',tr:'PartTransport',hb:'PartHebergement',rp:'PartRepas'},
     // Commentaires : Bloc peut valoir 'contentieux','budget','rh','immobilier',
     //   'vehicules','fraisMission', 'pointsAttention' (texte libre) ou 'chantier' (une pillule par ligne)
