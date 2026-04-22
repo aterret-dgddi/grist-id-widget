@@ -1215,6 +1215,55 @@ function fBuildIdx(){
   });
 }
 
+/* ═══════════════════════════════════════════════════════
+   INDEX & HIÉRARCHIE STRUCTURES
+═══════════════════════════════════════════════════════ */
+
+var _fBySigle = null, _fById = null;
+
+function fBuildIdx(){
+  _fBySigle = {};
+  _fById = {};
+  (D.structures || []).forEach(function(s){
+    _fById[s.id] = s;
+    var sg = strVal(s[CFG.c.S.sigle] || '').trim();
+    if (sg) _fBySigle[sg] = s;
+  });
+}
+
+function fParentOf(s){
+  if (!_fBySigle) fBuildIdx();
+  var raw = strVal(s[CFG.c.S.parent] || '').trim();
+  if (!raw) return null;
+
+  var asId = parseInt(raw);
+  if (!isNaN(asId) && _fById[asId]) return _fById[asId];
+
+  return _fBySigle[raw] || null;
+}
+
+function fEnfantsDe(s){
+  if (!_fBySigle) fBuildIdx();
+  return (D.structures || []).filter(function(r){
+    var p = fParentOf(r);
+    return p && p.id === s.id;
+  });
+}
+
+function fEnfantsDR(s){
+  return fEnfantsDe(s).filter(function(r){
+    return ['DR','Autre'].includes(strVal(r[CFG.c.S.type] || ''));
+  });
+}
+
+function fDescendants(s){
+  var res = [];
+  fEnfantsDe(s).forEach(function(e){
+    res.push(e);
+    fDescendants(e).forEach(function(d){ res.push(d); });
+  });
+  return res;
+}
 
 
 /* ═══════════════════════════════════════════════════════
