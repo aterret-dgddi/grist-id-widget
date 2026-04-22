@@ -265,6 +265,7 @@ body{font-family:'Cabin',sans-serif;background:#F2F5FA;color:var(--gris1);font-s
   <div class="tab"         onclick="show('immobilier',this)">🏛️ Immobilier</div>
   <div class="tab"         onclick="show('vehicules',this)">🚗 Véhicules</div>
   <div class="tab"         onclick="show('fraisMission',this)">✈️ Frais de mission</div>
+  <div class="tab"         onclick="show('informatique',this)">💻 Informatique</div>
 </div>
 
 <div id="year-bar-conso" style="background:#fff;border-bottom:1px solid var(--bord);padding:7px 18px;display:flex;align-items:center;gap:8px;display:none;">
@@ -279,6 +280,13 @@ body{font-family:'Cabin',sans-serif;background:#F2F5FA;color:var(--gris1);font-s
 <script>
 /* ── Fonctions utilitaires — définies en premier ── */
 function n(v){ var x=parseFloat(v); return isNaN(x)?0:x; }
+function fmtAge(v){
+  var x=parseFloat(String(v).replace(',','.'));
+  if(isNaN(x)||x<=0) return '—';
+  var ans=Math.floor(x); var mois=Math.round((x-ans)*12);
+  if(mois>=12){ans++;mois=0;}
+  return mois>0?ans+' ans '+mois+' mois':ans+' ans';
+}
 /* Extrait un nombre depuis une valeur Moyennes qui peut être "26,9" ou "25,9 %" ou 71 */
 function nPct(v){ if(v==null) return 0; var s=String(v).replace(',','.').replace(/[^0-9.]/g,''); var x=parseFloat(s); return isNaN(x)?0:x; }
 
@@ -287,7 +295,7 @@ function strVal(v){ if(Array.isArray(v)) return v[1]||''; return v==null?'':Stri
 
 /* ════════ CONFIG ════════ */
 const CFG={
-  tables:{structures:'Structures',contentieux:'Contentieux',budget:'Budget',rh:'RH',immobilier:'Immobilier',vehicules:'Vehicules',fraisMission:'FraisMission',moyennes:'Moyennes'},
+  tables:{structures:'Structures',contentieux:'Contentieux',budget:'Budget',rh:'RH',immobilier:'Immobilier',vehicules:'Vehicules',fraisMission:'FraisMission',moyennes:'Moyennes',informatique:'Informatique'},
   c:{
     S:{id:'id',nom:'Nom',type:'Type',parent:'Parent',region:'Region'},
     CT:{struct:'Structure',nb:'NombreTotal',cannabis:'KgCannabis',cocaine:'KgCocaine',tabac:'KgTabac'},
@@ -296,7 +304,8 @@ const CFG={
     IM:{struct:'Structure',site:'NomSite',occ:'TypeOccupation',adr:'Adresse',m2:'M2Occupes',cout:'CoutGestionM2',loyer:'LoyerAnnuel'},
     VH:{struct:'Structure',nb:'NbVehicules',vet_s:'TauxVetusteStructure',vet_n:'TauxVetusteMoyenNational',vpa_s:'VehiculesParAgent',vpa_n:'VehiculesMoyenNational'},
     FM:{struct:'Structure',type:'TypeMission',annee:'Annee',mt:'MontantTotal',tr:'PartTransport',hb:'PartHebergement',rp:'PartRepas'},
-    MO:{vet_n:'TauxVetusteMoyenNational',vpa_n:'VehiculesMoyenNational',age_n:'AgeMoyenNational',abs_n:'AbsenteismeMoyenNational',jf_n:'JoursFormationMoyenNational',cae_n:'ConsoAEMoyenNational',ccp_n:'ConsoCPMoyenNational',annee:'Annee'}
+    IT:{struct:'Structure',annee:'Annee',dep:'DepensesBureautique',pcp:'NbPCPortable',pcb:'NbPCBureau'},
+    MO:{vet_n:'TauxVetusteMoyenNational',vpa_n:'VehiculesMoyenNational',age_n:'AgeMoyenNational',abs_n:'AbsenteismeMoyenNational',jf_n:'JoursFormationMoyenNational',cae_n:'ConsoAEMoyenNational',ccp_n:'ConsoCPMoyenNational',annee:'Annee',info_dep_di:'DepenseMoyenneDI',info_dep_scn:'DepenseMoyenneSCN',info_dep_om:'DepenseMoyenneOM',info_tx_di:'TauxEquipMoyenDI',info_tx_scn:'TauxEquipMoyenSCN',info_tx_om:'TauxEquipMoyenOM'}
   }
 };
 let D={}, curTab='budget', _anneeC=2026;
@@ -524,6 +533,7 @@ function renderTab(tab){
   else if(tab==='immobilier')  el.innerHTML=tabImmobilier();
   else if(tab==='vehicules')   el.innerHTML=tabVehicules();
   else if(tab==='fraisMission') el.innerHTML=tabMissions();
+  else if(tab==='informatique') el.innerHTML=tabInformatique();
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -862,7 +872,7 @@ function tabRH(){
       +'<td class="tr">'+(ms!==null?fmt(ms)+' €':'—')+'</td>'
       +'<td class="tr">'+(jf!==null&&jf?jf.toFixed(1)+' j':'—')+'</td>'
       +'<td class="tr">'+(abs!==null&&abs?abs:'—')+'</td>'
-      +'<td class="tr">'+(age!==null&&age?age.toFixed(1)+' ans':'—')+'</td>'
+      +'<td class="tr">'+(age!==null&&age?fmtAge(age):'—')+'</td>'
       +'</tr>';
   }).filter(Boolean).join('');
 
@@ -1116,6 +1126,150 @@ function tabMissions(){
       <thead><tr><th>Structure</th><th>Type</th>${annees.map(function(a){return'<th class="tr">'+a+'</th>';}).join('')}</tr></thead>
       <tbody>${rows}</tbody>
       <tfoot><tr><td colspan="2">TOTAL</td>${totCols}</tr></tfoot>
+    </table></div>
+  </div>`;
+}
+
+/* ════════ TAB INFORMATIQUE ════════ */
+function tabInformatique(){
+  const c=CFG.c.IT, rhC=CFG.c.RH;
+  const ANNEES=[2022,2023,2024,2025];
+  const it=D.informatique||[], rhs=D.rh||[];
+  const mo=(D.moyennes||[])[0]||{};
+  if(!_bySigle) buildIdx();
+  const TYPE_SIEGE=['Siège','siège','SIEGE'];
+
+  // Périmètre outremer
+  const SIGLES_OM=new Set(['DI 972','DR 974','DR 976','DR 988','DR 987']);
+  const spm=(D.structures||[]).find(function(x){return (x.Nom||x.nom||'').indexOf('Pierre')!==-1;});
+  if(spm){SIGLES_OM.add((spm.Sigle||spm.sigle||'').trim());}
+
+  // ETPT consolidé pour une structure et une année
+  function etptConso(s,annee){
+    return [s].concat(descendantsDe(s)).reduce(function(tot,d){
+      var r=rhs.find(function(x){return n(x[rhC.struct])===d.id&&Number(x[rhC.annee])===annee;});
+      return tot+(r?Math.round(n(r[rhC.etpt_tot])||n(r[rhC.etpt_su])+n(r[rhC.etpt_agco])):0);
+    },0);
+  }
+
+  // Calcul coût moyen 4 ans et taux équip pour une structure
+  function calcIT(s){
+    var anneesDispo=ANNEES.filter(function(a){return it.some(function(r){return n(r[c.struct])===s.id&&Number(r[c.annee])===a;});});
+    if(!anneesDispo.length) return null;
+    var sumDep=0,sumEtpt=0,cntEtpt=0;
+    anneesDispo.forEach(function(a){
+      var row=it.find(function(r){return n(r[c.struct])===s.id&&Number(r[c.annee])===a;});
+      sumDep+=row?n(row[c.dep]):0;
+      var e=etptConso(s,a);
+      if(e>0){sumEtpt+=e;cntEtpt++;}
+    });
+    var moyDep=sumDep/anneesDispo.length;
+    var moyEtpt=cntEtpt>0?sumEtpt/cntEtpt:0;
+    var coutMoy=moyEtpt>0?Math.round(moyDep/moyEtpt):null;
+    // Taux équip dernière année
+    var last=it.filter(function(r){return n(r[c.struct])===s.id;}).sort(function(a,b){return Number(b[c.annee])-Number(a[c.annee]);})[0];
+    var etptLast=last?etptConso(s,Number(last[c.annee])):0;
+    var taux=(last&&etptLast>0)?(n(last[c.pcp])+n(last[c.pcb]))/etptLast*100:null;
+    return {coutMoy:coutMoy, taux:taux, lastAnnee:last?Number(last[c.annee]):null};
+  }
+
+  // Moyennes de référence dynamiques (si pas dans Moyennes)
+  function moyRef(typeRef,siglesOM,field){
+    var val=nPct(mo[CFG.c.MO[field]]);
+    if(val) return val;
+    var structs=(D.structures||[]).filter(function(s){
+      if(siglesOM) return siglesOM.has((s.Sigle||s.sigle||'').trim());
+      return strVal(s.Type||s.type||'')===typeRef;
+    });
+    var vals=[];
+    structs.forEach(function(s){
+      var r=calcIT(s);
+      if(r&&r[field==='info_tx_di'||field==='info_tx_scn'||field==='info_tx_om'?'taux':'coutMoy']!==null)
+        vals.push(r[field==='info_tx_di'||field==='info_tx_scn'||field==='info_tx_om'?'taux':'coutMoy']);
+    });
+    return vals.length?vals.reduce(function(a,b){return a+b;},0)/vals.length:null;
+  }
+
+  // Structures à afficher : DI + SCN + DR autonomes + Siège
+  const structs=ordered().filter(function(s){
+    const typeS=strVal(s.Type||s.type||'');
+    const sigle=(s.Sigle||s.sigle||'').trim();
+    const isRoot=sigle==='DGDDI';
+    const isAutre=typeS==='Autre';
+    if(isRoot||isAutre) return false;
+    if(typeS==='DI'||typeS==='SCN'||TYPE_SIEGE.includes(typeS)) return true;
+    // DR autonomes seulement
+    if(typeS==='DR'){
+      var p=parentOf(s);
+      return p&&(p.Sigle||p.sigle||'').trim()==='DGDDI';
+    }
+    return false;
+  });
+
+  // Totaux pour KPI global
+  var totDep=0,cntDep=0;
+  structs.forEach(function(s){
+    ANNEES.forEach(function(a){
+      var row=it.find(function(r){return n(r[c.struct])===s.id&&Number(r[c.annee])===a;});
+      if(row){totDep+=n(row[c.dep]);cntDep++;}
+    });
+  });
+
+  // En-tête du tableau
+  var thead='<thead><tr><th>Structure</th>';
+  ANNEES.forEach(function(a){ thead+='<th class="tr">Dép. '+a+' (€)</th><th class="tr">PC tot.</th>'; });
+  thead+='<th class="tr">Taux équip.</th><th class="tr">Coût moy./ETPT</th></tr></thead>';
+
+  var tbody=structs.map(function(s){
+    const typeS=strVal(s.Type||s.type||'');
+    const sigle=(s.Sigle||s.sigle||'').trim();
+    const isOM=SIGLES_OM.has(sigle);
+    var kRef,txRef;
+    if(typeS==='DI'||TYPE_SIEGE.includes(typeS)){
+      kRef=moyRef('DI',null,'info_dep_di'); txRef=moyRef('DI',null,'info_tx_di');
+    } else if(typeS==='SCN'){
+      kRef=moyRef('SCN',null,'info_dep_scn'); txRef=moyRef('SCN',null,'info_tx_scn');
+    } else {
+      kRef=moyRef(null,SIGLES_OM,'info_dep_om'); txRef=moyRef(null,SIGLES_OM,'info_tx_om');
+    }
+    var calcul=calcIT(s);
+    var taux=calcul?calcul.taux:null;
+    var coutMoy=calcul?calcul.coutMoy:null;
+    var clsTaux=txRef&&taux!==null?(taux<txRef*0.9?'style="color:var(--rouge)"':taux>txRef*1.1?'style="color:var(--vert)"':''):'';
+    var clsCout=kRef&&coutMoy!==null?(coutMoy>kRef*1.1?'style="color:var(--rouge)"':coutMoy<kRef*0.9?'style="color:var(--vert)"':''):'';
+
+    var cellsAnnees=ANNEES.map(function(a){
+      var row=it.find(function(r){return n(r[c.struct])===s.id&&Number(r[c.annee])===a;});
+      var dep=row?fmt(Math.round(n(row[c.dep]))):'—';
+      var pctot=row?n(row[c.pcp])+n(row[c.pcb]):'—';
+      return '<td class="tr">'+dep+'</td><td class="tr">'+pctot+'</td>';
+    }).join('');
+
+    return '<tr class="r-'+typeS+'">'
+      +'<td><span class="badge b-'+typeS+'">'+typeS+'</span> '+(s.Nom||s.nom)+'</td>'
+      +cellsAnnees
+      +'<td class="tr" '+clsTaux+'>'+(taux!==null?taux.toFixed(1)+'%':'—')+'</td>'
+      +'<td class="tr" '+clsCout+'>'+(coutMoy!==null?fmt(coutMoy)+' €':'—')+'</td>'
+      +'</tr>';
+  }).join('');
+
+  // Ligne références
+  var refRow='<tr style="background:var(--gris4);font-size:10px;color:var(--gris2);">'
+    +'<td colspan="'+(ANNEES.length*2+1)+'">Références : Moy. DI, Moy. SCN, Moy. Outremer (calculées dynamiquement)</td>'
+    +'<td class="tr">'+(moyRef('DI',null,'info_tx_di')?moyRef('DI',null,'info_tx_di').toFixed(1)+'% (DI)':'—')+'</td>'
+    +'<td class="tr">'+(moyRef('DI',null,'info_dep_di')?fmt(Math.round(moyRef('DI',null,'info_dep_di')))+' € (DI)':'—')+'</td>'
+    +'</tr>';
+
+  return `
+  <div class="kpi-global">
+    <div class="kg-card"><div class="kg-val" style="font-size:18px">${fmt(Math.round(totDep/Math.max(cntDep/ANNEES.length,1)))} €</div><div class="kg-lbl">Dépense moy. bureautique</div></div>
+    <div class="kg-card"><div class="kg-val" style="color:var(--gris2)">${structs.length}</div><div class="kg-lbl">Structures avec données</div></div>
+  </div>
+  <div class="twrap">
+    <div class="twrap-title">💻 Informatique bureautique — 4 ans</div>
+    <div class="tscroll"><table class="ct">
+      ${thead}
+      <tbody>${tbody}${refRow}</tbody>
     </table></div>
   </div>`;
 }

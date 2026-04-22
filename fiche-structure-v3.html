@@ -156,23 +156,19 @@ body{font-family:'Cabin',sans-serif;background:#F2F5FA;color:var(--gris1);line-h
 .b-DR{background:#1351A8;color:#fff;}
 #cur-parent{font-size:11px;color:var(--gris3);font-style:italic;}
 
-/* Raccourcis rapides — barre horizontale scrollable */
+/* Accès rapide — flex-wrap pour tenir sans ascenseur */
 #quick-nav{
   background:#fff;border-bottom:1px solid var(--bord);
-  padding:6px 18px;display:flex;align-items:center;gap:8px;
-  overflow-x:auto;white-space:nowrap;
-  scrollbar-width:thin;scrollbar-color:var(--bord) transparent;
+  padding:6px 18px;display:flex;align-items:flex-start;
+  gap:5px 6px;flex-wrap:wrap;
 }
-#quick-nav::-webkit-scrollbar{height:3px;}
-#quick-nav::-webkit-scrollbar-track{background:transparent;}
-#quick-nav::-webkit-scrollbar-thumb{background:var(--bord);border-radius:2px;}
 #qnav-items{display:contents;}
-.qnav-label{font-size:10.5px;color:var(--gris3);flex-shrink:0;white-space:nowrap;}
-.qnav-sep{width:1px;height:16px;background:var(--bord);flex-shrink:0;}
+.qnav-label{font-size:10.5px;color:var(--gris3);flex-shrink:0;white-space:nowrap;align-self:center;margin-right:2px;}
+.qnav-sep{width:1px;height:16px;background:var(--bord);flex-shrink:0;align-self:center;}
 .qnav-btn{
-  padding:3px 10px;background:var(--gris4);border:1px solid var(--bord);
-  border-radius:20px;font-size:11px;font-weight:600;color:var(--gris2);
-  cursor:pointer;transition:all .15s;white-space:nowrap;flex-shrink:0;
+  padding:3px 9px;background:var(--gris4);border:1px solid var(--bord);
+  border-radius:20px;font-size:10.5px;font-weight:600;color:var(--gris2);
+  cursor:pointer;transition:all .15s;white-space:nowrap;
 }
 .qnav-btn:hover{background:var(--rep-pale);border-color:var(--rep2);color:var(--rep);}
 .qnav-btn.active{background:var(--rep);border-color:var(--rep);color:#fff;}
@@ -420,6 +416,16 @@ body{font-family:'Cabin',sans-serif;background:#F2F5FA;color:var(--gris1);line-h
 .legend{display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;}
 .leg-item{display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--gris2);}
 .leg-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
+.repartition-wrap{margin-top:12px;}
+.repartition-titre{font-size:10px;font-weight:700;color:var(--rep);text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid var(--rep-pale);padding-bottom:4px;margin-bottom:6px;}
+.repartition-table{width:100%;border-collapse:collapse;font-size:11px;}
+.repartition-table th{background:var(--rep-pale);color:var(--rep);padding:4px 8px;text-align:left;font-size:10px;font-weight:700;border-bottom:1.5px solid var(--bord);}
+.repartition-table th.tr{text-align:right;}
+.repartition-table td{padding:4px 8px;border-bottom:1px solid var(--bord);}
+.repartition-table td.tr{text-align:right;font-variant-numeric:tabular-nums;}
+.repartition-table tr:last-child td{border-bottom:none;}
+.repartition-table tr.rep-total td{background:var(--rep-pale);font-weight:700;border-top:1.5px solid var(--bord);}
+.repartition-table tr:hover td{background:#F0F4FF;}
 .comment-zone{margin-top:12px;border-top:1px dashed var(--bord);padding-top:10px;}
 .comment-label{font-size:10px;font-weight:700;color:var(--gris3);letter-spacing:.6px;text-transform:uppercase;margin-bottom:5px;display:flex;align-items:center;justify-content:space-between;}
 .comment-text{font-size:12px;color:var(--gris2);line-height:1.6;min-height:24px;font-style:italic;}
@@ -709,6 +715,15 @@ function anneeAffichee(rows, colonneAnnee){
 
 /* ── Fonctions utilitaires globales — définies en premier ── */
 function n(v){ var x=parseFloat(v); return isNaN(x)?0:x; }
+/* Formate un âge décimal en "44 ans 3 mois" */
+function fmtAge(v){
+  var x=parseFloat(String(v).replace(',','.'));
+  if(isNaN(x)||x<=0) return '—';
+  var ans=Math.floor(x);
+  var mois=Math.round((x-ans)*12);
+  if(mois>=12){ans++;mois=0;}
+  return mois>0 ? ans+' ans '+mois+' mois' : ans+' ans';
+}
 /* Extrait un nombre depuis une valeur Moyennes qui peut être "26,9" ou "25,9 %" ou 71 */
 function nPct(v){ if(v==null) return 0; var s=String(v).replace(',','.').replace(/[^0-9.]/g,''); var x=parseFloat(s); return isNaN(x)?0:x; }
 
@@ -723,7 +738,7 @@ const LOGO_URL = 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1d/Logo
    CONFIG
 ═══════════════════════════════════════════════════════ */
 const CFG={
-  tables:{structures:'Structures',contentieux:'Contentieux',budget:'Budget',rh:'RH',immobilier:'Immobilier',vehicules:'Vehicules',fraisMission:'FraisMission',commentaires:'Commentaires',moyennes:'Moyennes'},
+  tables:{structures:'Structures',contentieux:'Contentieux',budget:'Budget',rh:'RH',immobilier:'Immobilier',vehicules:'Vehicules',fraisMission:'FraisMission',commentaires:'Commentaires',moyennes:'Moyennes',informatique:'Informatique'},
   c:{
     S:{id:'id',nom:'Nom',type:'Type',parent:'Parent',region:'Region',chef:'Chef',logo:'Logo',maj:'DateMAJ',sigle:'Sigle'},
     CT:{struct:'Structure',nb:'NombreTotal',cannabis:'KgCannabis',cocaine:'KgCocaine',tabac:'KgTabac',annee:'Annee'},
@@ -732,11 +747,15 @@ const CFG={
     IM:{struct:'Structure',site:'NomSite',occ:'TypeOccupation',adr:'Adresse',m2:'M2Occupes',cout:'CoutGestionM2',loyer:'LoyerAnnuel'},
     VH:{struct:'Structure',nb:'NbVehicules',vet_s:'TauxVetusteStructure',vpa_s:'VehiculesParAgent',annee:'Annee'},
     // Moyennes nationales lues depuis la table Moyennes (formules Grist)
-    MO:{vet_n:'TauxVetusteMoyenNational',vpa_n:'VehiculesMoyenNational',age_n:'AgeMoyenNational',abs_n:'AbsenteismeMoyenNational',jf_n:'JoursFormationMoyenNational',cae_n:'ConsoAEMoyenNational',ccp_n:'ConsoCPMoyenNational',annee:'Annee'},
+    MO:{vet_n:'TauxVetusteMoyenNational',vpa_n:'VehiculesMoyenNational',age_n:'AgeMoyenNational',abs_n:'AbsenteismeMoyenNational',jf_n:'JoursFormationMoyenNational',cae_n:'ConsoAEMoyenNational',ccp_n:'ConsoCPMoyenNational',annee:'Annee',
+    // Moyennes informatique (calculées dynamiquement et stockées)
+    info_dep_di:'DepenseMoyenneDI',info_dep_scn:'DepenseMoyenneSCN',info_dep_om:'DepenseMoyenneOM',
+    info_tx_di:'TauxEquipMoyenDI',info_tx_scn:'TauxEquipMoyenSCN',info_tx_om:'TauxEquipMoyenOM'},
     FM:{struct:'Structure',type:'TypeMission',annee:'Annee',mt:'MontantTotal',tr:'PartTransport',hb:'PartHebergement',rp:'PartRepas'},
     // Commentaires : Bloc peut valoir 'contentieux','budget','rh','immobilier',
     //   'vehicules','fraisMission', 'pointsAttention' (texte libre) ou 'chantier' (une pillule par ligne)
     CM:{struct:'Structure',bloc:'Bloc',txt:'Commentaire',maj:'DateMAJ'},
+    IT:{struct:'Structure',annee:'Annee',dep:'DepensesBureautique',pcp:'NbPCPortable',pcb:'NbPCBureau'},
   }
 };
 
@@ -1063,6 +1082,17 @@ function loadDemo(){
       {id:9, Structure:2,TypeMission:'Formation',     Annee:2022,MontantTotal:35000, PartTransport:55,PartHebergement:28,PartRepas:17},
       {id:10,Structure:2,TypeMission:'AutresMissions',Annee:2022,MontantTotal:107000,PartTransport:47,PartHebergement:35,PartRepas:18},
     ],
+    informatique:[
+      // Format long : une ligne par structure × année
+      {id:1, Structure:1, Annee:2022, DepensesBureautique:280000, NbPCPortable:120, NbPCBureau:45},
+      {id:2, Structure:1, Annee:2023, DepensesBureautique:295000, NbPCPortable:125, NbPCBureau:40},
+      {id:3, Structure:1, Annee:2024, DepensesBureautique:310000, NbPCPortable:132, NbPCBureau:38},
+      {id:4, Structure:1, Annee:2025, DepensesBureautique:325000, NbPCPortable:138, NbPCBureau:35},
+      {id:5, Structure:2, Annee:2022, DepensesBureautique:210000, NbPCPortable:88,  NbPCBureau:32},
+      {id:6, Structure:2, Annee:2023, DepensesBureautique:218000, NbPCPortable:92,  NbPCBureau:30},
+      {id:7, Structure:2, Annee:2024, DepensesBureautique:225000, NbPCPortable:96,  NbPCBureau:28},
+      {id:8, Structure:2, Annee:2025, DepensesBureautique:235000, NbPCPortable:100, NbPCBureau:26},
+    ],
     moyennes:[
       // Une seule ligne — les formules Grist calculent automatiquement
       {id:1,TauxVetusteMoyenNational:26.9,VehiculesMoyenNational:'25,9 %',AgeMoyenNational:43.2,AbsenteismeMoyenNational:431.6,JoursFormationMoyenNational:3.7,ConsoAEMoyenNational:'71 %',ConsoCPMoyenNational:'69 %',Annee:2026},
@@ -1111,8 +1141,17 @@ function build(){
   if(first) selectStructure(first.id);
 }
 
-/* Index par Sigle pour la fiche (reconstruit à chaque chargement) */
+/* ════ Index et hiérarchie pour la fiche ════
+   Même logique que la consolidation : parent résolu via Sigle texte.
+   fEnfantsDe(s) = enfants directs (DR + Autre)
+   fDescendants(s) = tous les descendants
+   fConsoVal(s, data, colStruct, getVal) = somme consolidée */
 var _fBySigle=null, _fById=null;
+const HIER_FICHE={
+  TYPES_PARENT: new Set(['DI','SCN','Siège','siège','SIEGE']),
+  // DR incluses : les DR autonomes (NC, Polynésie...) peuvent avoir des filles
+  TYPES_AVEC_FILLES: new Set(['DI','SCN','Siège','siège','SIEGE','DR']),
+};
 function fBuildIdx(){
   _fBySigle={}; _fById={};
   (D.structures||[]).forEach(function(s){
@@ -1121,20 +1160,45 @@ function fBuildIdx(){
     if(sg) _fBySigle[sg]=s;
   });
 }
-function fParentSigle(s){
-  var raw=strVal(s[CFG.c.S.parent]||'').trim();
-  if(!raw) return '';
-  // id numérique → chercher le sigle
-  var asId=parseInt(raw);
-  if(!isNaN(asId)&&_fById&&_fById[asId]) return strVal(_fById[asId][CFG.c.S.sigle]||'').trim();
-  return raw; // déjà un sigle texte
-}
-function fEnfantsDR(s){
+function fParentOf(s){
   if(!_fBySigle) fBuildIdx();
-  var sigle=strVal(s[CFG.c.S.sigle]||'').trim();
-  if(!sigle) return [];
+  var raw=strVal(s[CFG.c.S.parent]||'').trim();
+  if(!raw) return null;
+  var asId=parseInt(raw);
+  if(!isNaN(asId)&&_fById[asId]) return _fById[asId];
+  return _fBySigle[raw]||null;
+}
+function fEnfantsDe(s){
+  if(!_fBySigle) fBuildIdx();
   return (D.structures||[]).filter(function(r){
-    return strVal(r[CFG.c.S.type])==='DR' && strVal(r[CFG.c.S.parent]||'').trim()===sigle;
+    var p=fParentOf(r);
+    return p&&p.id===s.id;
+  });
+}
+function fEnfantsDR(s){ // alias rétro-compatible
+  return fEnfantsDe(s).filter(function(r){
+    return ['DR','Autre'].includes(strVal(r[CFG.c.S.type]||''));
+  });
+}
+function fDescendants(s){
+  var res=[];
+  fEnfantsDe(s).forEach(function(e){
+    res.push(e);
+    fDescendants(e).forEach(function(d){res.push(d);});
+  });
+  return res;
+}
+function fConsoVal(s, dataArr, colStruct, getVal){
+  var all=[s].concat(fDescendants(s));
+  return all.reduce(function(tot,d){
+    var row=dataArr.find(function(r){return n(r[colStruct])===d.id;});
+    return tot+(row?getVal(row):0);
+  },0);
+}
+/* Vérifie si une structure a des filles avec données dans un tableau */
+function fHasFilles(s, dataArr, colStruct){
+  return fEnfantsDe(s).some(function(e){
+    return dataArr.some(function(r){return n(r[colStruct])===e.id;});
   });
 }
 
@@ -1289,16 +1353,38 @@ function selectStructure(id){
    NAVIGATION RAPIDE (raccourcis)
 ═══════════════════════════════════════════════════════ */
 function buildQuickNav(){
-  const S=selectorStructures();
+  if(!_fBySigle) fBuildIdx();
+  const SIGLE_DGDDI='DGDDI';
+  // Inclure : DI, SCN, DR autonomes (parent = DGDDI ou pas de parent DI)
+  const TYPES_QNAV=new Set(['DI','SCN','Siège','siège','SIEGE']);
+  const all=(D.structures||[]).filter(function(s){
+    const typeS=strVal(s[CFG.c.S.type]);
+    const parentRaw=strVal(s[CFG.c.S.parent]||'').trim();
+    // DI, SCN, Siège
+    if(TYPES_QNAV.has(typeS)) return true;
+    // DR autonomes : parent = DGDDI (pas rattachées à une DI)
+    if(typeS==='DR'){
+      // parent est DGDDI (texte) ou une structure dont le sigle = DGDDI
+      if(parentRaw===SIGLE_DGDDI) return true;
+      var parentStruct=_fBySigle[parentRaw]||_fById[parseInt(parentRaw)];
+      if(parentStruct&&strVal(parentStruct[CFG.c.S.sigle]||'').trim()===SIGLE_DGDDI) return true;
+    }
+    return false;
+  });
+  // Trier : Siège en premier, puis DI par sigle, puis DR autonomes, puis SCN
+  const order={'Siège':0,'siège':0,'SIEGE':0,'DI':1,'DR':2,'SCN':3};
+  all.sort(function(a,b){
+    const ta=strVal(a[CFG.c.S.type]), tb=strVal(b[CFG.c.S.type]);
+    const oa=order[ta]||9, ob=order[tb]||9;
+    if(oa!==ob) return oa-ob;
+    return strVal(a[CFG.c.S.sigle]||'').localeCompare(strVal(b[CFG.c.S.sigle]||''),'fr');
+  });
   const container=document.getElementById('qnav-items');
-  container.innerHTML=S.map(s=>{
-    // Utiliser le sigle s'il existe, sinon abréger le nom
-    const label = s[CFG.c.S.sigle] || s[CFG.c.S.nom]
-      .replace('Direction Générale','DG')
-      .replace('Direction Interrégionale','DI')
-      .replace('Service à Compétence Nationale','SCN')
-      .replace('Direction ','');
-    return `<div class="qnav-btn" data-id="${s.id}" onclick="selectStructure(${s.id})" title="${s[CFG.c.S.nom]}">${label}</div>`;
+  container.innerHTML=all.map(function(s){
+    // Utiliser $Sigle directement
+    const sigle=strVal(s[CFG.c.S.sigle]||'');
+    const label=sigle||strVal(s[CFG.c.S.nom]||'').replace('Direction Générale','DG').replace('Direction Interrégionale','DI').replace('Service à Compétence Nationale','SCN');
+    return '<div class="qnav-btn" data-id="'+s.id+'" onclick="selectStructure('+s.id+')" title="'+strVal(s[CFG.c.S.nom]||'')+'">'+label+'</div>';
   }).join('');
 }
 
@@ -1701,7 +1787,7 @@ function buildPdfHTML(s, blocs, inclAttn, inclDR){
         +kpiCell(fmt(n(rh[cr.ms]))+'&#160;&euro;','Masse salariale','v')
         +kpiCell(fmtD(n(rh[cr.jf])),'J. form./agent','')
         +kpiCell(n(rh[cr.abs]),'J. absentéisme','o')
-        +kpiCell(fmtD(n(rh[cr.age]))+' ans','Âge moyen','')
+        +kpiCell(fmtAge(n(rh[cr.age])),'Âge moyen','')
         +'</tr></table>'
         +progBar(pct);
 
@@ -1871,26 +1957,26 @@ ${ficheHTML}
 function renderFiche(s){
   const id=s.id;
   _curId=id;
+  if(!_fBySigle) fBuildIdx();
   const body=document.getElementById('fiche-body');
   body.style.display='block';
 
-  // ── Filtrage par année sélectionnée ──
+  // Filtrage par année sélectionnée
   const ctAll=(D.contentieux||[]).filter(r=>r[CFG.c.CT.struct]==id);
   const ct=filtreAnnee(ctAll,'Annee');
   const buAll=(D.budget||[]).filter(r=>r[CFG.c.B.struct]==id);
   const bu=filtreAnnee(buAll,'Annee');
-  // RH : plusieurs lignes par année (AGCO + SU), garder toutes les lignes de l'année
   const rhAll=(D.rh||[]).filter(r=>r[CFG.c.RH.struct]==id);
-  const rh=filtreAnnee(rhAll,'Annee');  // tableau, pas .find()
+  const rh=filtreAnnee(rhAll,'Annee');
   const im=(D.immobilier||[]).filter(r=>r[CFG.c.IM.struct]==id);
   const vhAll=(D.vehicules||[]).filter(r=>r[CFG.c.VH.struct]==id);
   const vhFilt=filtreAnnee(vhAll,'Annee');
   const vh=vhFilt[0]||null;
-  const fm=(D.fraisMission||[]).filter(r=>r[CFG.c.FM.struct]==id); // tout l'historique
+  const fm=(D.fraisMission||[]).filter(r=>r[CFG.c.FM.struct]==id);
   const cm=(D.commentaires||[]).filter(r=>r[CFG.c.CM.struct]==id);
-  const drs=['DI','Siège','SIEGE'].includes(strVal(s[CFG.c.S.type]))?(D.structures||[]).filter(r=>strVal(r[CFG.c.S.type])==='DR'&&r[CFG.c.S.parent]==id):[];
+  const drs=fEnfantsDR(s); // enfants DR de cette structure
 
-  // Contentieux : masqué si aucune donnée significative
+  // Contentieux : masqué si aucune donnée
   const hasContentieux=ct.some(r=>n(r[CFG.c.CT.nb])>0||n(r[CFG.c.CT.cannabis])>0||n(r[CFG.c.CT.cocaine])>0||n(r[CFG.c.CT.tabac])>0);
   const ctBlock=hasContentieux?renderContentieux(ct,cm,drs):'';
 
@@ -1899,9 +1985,10 @@ function renderFiche(s){
     +ctBlock
     +renderRH(rh,cm,drs,s)
     +renderBudget(bu,cm)
-    +renderVehicules(vh,cm,drs)
-    +renderImmobilier(im,cm)
+    +renderVehicules(vh,cm,drs,s)
+    +renderImmobilier(im,cm,s)
     +renderFraisMission(fm,cm)
+    +renderInformatique(s,cm)
     +'</div>';
 }
 function renderHeader(s){
@@ -1979,78 +2066,234 @@ function renderBudget(data,cms){
 }
 function renderRH(rhRows,cms,drs,s){
   const c=CFG.c.RH, cm=cms.find(x=>x[CFG.c.CM.bloc]==='rh');
-  // rhRows est un tableau filtré par année — prendre le premier enregistrement
-  const d=rhRows&&rhRows.length?rhRows[0]:null;
-  if(!d) return secEmpty('👥','Situation RH',cm,'','rh');
-  const annee=anneeAffichee(rhRows,'Annee');
-  const typeS=s?strVal(s[CFG.c.S.type]):'';
+  if(!_fBySigle) fBuildIdx();
+  const typeS=strVal(s?s[CFG.c.S.type]:'');
+  const IS_PARENT=HIER_FICHE.TYPES_AVEC_FILLES.has(typeS);
 
-  // Colonnes ETPT directes (pas de domaine séparé)
-  const etptAgco=Math.round(n(d[c.etpt_agco]));
-  const etptSu  =Math.round(n(d[c.etpt_su]));
-  const etptTot =Math.round(n(d[c.etpt_tot])||etptAgco+etptSu); // fallback si colonne absente
+  // Données propres de la structure sélectionnée
+  const own=rhRows&&rhRows.length?rhRows[0]:null;
 
-  // Effectifs cibles : uniquement DI et SIEGE
-  const showCib=['DI','SIEGE'].includes(typeS);
-  const cib=n(d[c.cib]);
+  // Afficher le bloc même sans données propres (message 'Aucune donnée' pour les DR)
+  const filles=IS_PARENT?fEnfantsDe(s):[];
+  const rhAll=fA(D.rh||[]);
+  const fillesAvecDonnees=filles.filter(function(f){return rhAll.some(function(r){return n(r[c.struct])===f.id;});});
+  // Masquer uniquement si DI/SCN/Siège sans aucune fille avec données
+  if(IS_PARENT&&!own&&!fillesAvecDonnees.length) return secEmpty('👥','Situation RH',cm,'','rh');
 
-  // Masse salariale : DI, DR, SIEGE
-  const showMS=['DI','DR','SIEGE'].includes(typeS);
-  const ms=Math.ceil(n(d[c.ms]));
+  const annee=own?anneeAffichee(rhRows,'Annee'):'';
 
-  const jf =n(d[c.jf]);
-  const abs =n(d[c.abs]);
-  const age =n(d[c.age]);
+  // Valeurs consolidées (propre + filles récursives)
+  const etptAgco = Math.round(fConsoVal(s, rhAll, c.struct, function(r){return n(r[c.etpt_agco]);}));
+  const etptSu   = Math.round(fConsoVal(s, rhAll, c.struct, function(r){return n(r[c.etpt_su]);}));
+  const etptTot  = Math.round(fConsoVal(s, rhAll, c.struct, function(r){return n(r[c.etpt_tot])||n(r[c.etpt_agco])+n(r[c.etpt_su]);}));
+  const ms       = IS_PARENT?Math.ceil(fConsoVal(s,rhAll,c.struct,function(r){return n(r[c.ms]);})):own?Math.ceil(n(own[c.ms])):0;
+
+  // Indicateurs propres uniquement (pas consolidés)
+  const cib  = own&&['DI','Siège','siège','SIEGE'].includes(typeS)?n(own[c.cib]):null;
+  const jf   = own?n(own[c.jf]):null;
+  const abs  = own?n(own[c.abs]):null;
+  const age  = own?n(own[c.age]):null;
+  // Message affiché sous les KPI si DR sans données propres
+  const noDonneesPropres = !own && !IS_PARENT;
   const mo=(D.moyennes||[])[0]||{};
   const absN=nPct(mo[CFG.c.MO.abs_n]);
   const ageN=nPct(mo[CFG.c.MO.age_n]);
 
-  // Bloc ETPT : toujours afficher AGCO + SU + Total sur une ligne
+  // KPI row
   const hasDetail=etptAgco>0||etptSu>0;
-  const etptHtml=hasDetail
+  const etptKpi=hasDetail
     ?`<div class="kpi"><div class="kv">${etptAgco}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">ETPT AGCO</div></div>`
      +`<div class="kpi"><div class="kv">${etptSu}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">ETPT SU</div></div>`
-     +`<div class="kpi vert"><div class="kv">${etptTot}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">ETPT total</div></div>`
-    :`<div class="kpi vert"><div class="kv">${etptTot}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">ETPT</div></div>`;
+     +`<div class="kpi vert"><div class="kv">${etptTot}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">ETPT total${IS_PARENT?' (consolid\u00e9)':''}</div></div>`
+    :`<div class="kpi vert"><div class="kv">${etptTot||'—'}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">ETPT${IS_PARENT?' (consolid\u00e9)':''}</div></div>`;
 
-  const cibHtml=showCib&&cib
-    ?`<div class="kpi"><div class="kv">${cib}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Eff. cibles</div></div>`
-    :'';
+  const cibKpi=cib?`<div class="kpi"><div class="kv">${cib}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Eff. cibles</div></div>`:'';
+  const msKpi=['DI','DR','Siège','siège','SIEGE'].includes(typeS)&&ms
+    ?`<div class="kpi vert"><div class="kv" style="font-size:13px">${fmt(ms)} €</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Masse salariale${IS_PARENT?' (consolid\u00e9e)':''}</div></div>`:'';
+  const jfKpi=jf?`<div class="kpi"><div class="kv">${fmtD(jf)}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">J. form./agent</div></div>`:'';
+  const absKpi=abs!==null?`<div class="kpi orange"><div class="kv">${abs}</div><div class="kl" style="font-size:${absN?'9.5':'10.5'}px;color:var(--gris2)">${absN?'abs. (nat. '+absN+')':'J. absentéisme'}</div></div>`:'';
+  const ageKpi=age?`<div class="kpi"><div class="kv" style="font-size:12px">${fmtAge(age)}</div><div class="kl" style="font-size:${ageN?'9.5':'10.5'}px;color:var(--gris2)">${ageN?'(nat. '+fmtAge(ageN)+')':'Âge moyen'}</div></div>`:'';
 
-  const msHtml=showMS&&ms
-    ?`<div class="kpi vert"><div class="kv" style="font-size:13px">${fmt(ms)} €</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Masse salariale</div></div>`
-    :'';
+  // Tableau de répartition par fille (DI → DR, DR autonome → ses filles)
+  let repTable='';
+  if(IS_PARENT&&fillesAvecDonnees.length>0){
+    const rhFiltAll=fA(D.rh||[]);
+    const lignes=fillesAvecDonnees.map(function(f){
+      const rf=rhFiltAll.find(function(r){return n(r[c.struct])===f.id;});
+      if(!rf) return '';
+      const fa=Math.round(n(rf[c.etpt_agco])), fs=Math.round(n(rf[c.etpt_su]));
+      const ft=Math.round(n(rf[c.etpt_tot])||fa+fs);
+      const fms=Math.ceil(n(rf[c.ms]));
+      const fnm=strVal(f[CFG.c.S.nom]||f.Nom||'');
+      const fsig=strVal(f[CFG.c.S.sigle]||f.Sigle||'');
+      return `<tr>
+        <td class="tbold">${fsig||fnm}</td>
+        <td style="font-size:10px;color:var(--gris2)">${fsig?fnm:''}</td>
+        <td class="tr">${fa||'—'}</td>
+        <td class="tr">${fs||'—'}</td>
+        <td class="tr" style="font-weight:700">${ft||'—'}</td>
+        ${['DI','DR','Siège','siège','SIEGE'].includes(typeS)?`<td class="tr">${fms?fmt(fms)+' €':'—'}</td>`:''}
+      </tr>`;
+    }).filter(Boolean).join('');
+    const showMS=['DI','DR','Siège','siège','SIEGE'].includes(typeS);
+    if(lignes){
+      repTable=`<div class="repartition-wrap">
+        <div class="repartition-titre">Répartition par direction fille</div>
+        <table class="repartition-table">
+          <thead><tr>
+            <th>Sigle</th><th>Structure</th>
+            <th class="tr">ETPT AGCO</th><th class="tr">ETPT SU</th><th class="tr">ETPT Total</th>
+            ${showMS?'<th class="tr">Masse sal.</th>':''}
+          </tr></thead>
+          <tbody>${lignes}</tbody>
+          <tr class="rep-total">
+            <td colspan="2">Total consolidé</td>
+            <td class="tr">${etptAgco||'—'}</td>
+            <td class="tr">${etptSu||'—'}</td>
+            <td class="tr">${etptTot||'—'}</td>
+            ${showMS?`<td class="tr">${ms?fmt(ms)+' €':'—'}</td>`:''}
+          </tr>
+        </table>
+      </div>`;
+    }
+  }
 
+  const aucuneDonneeMsg = (!own&&!IS_PARENT)
+    ? '<div class="no-data" style="color:var(--gris3);font-style:italic;padding:8px 0;">Aucune donnée disponible pour cette structure.</div>'
+    : '';
   return`<div class="section"><div class="sec-hdr"><span class="ico">👥</span><h3>Situation RH${annee?' <span style="font-size:11px;font-weight:400;opacity:.7;">— '+annee+'</span>':''}</h3></div><div class="sec-body">
-    <div class="kpi-row">
-      ${etptHtml}${cibHtml}${msHtml}
-      <div class="kpi"><div class="kv">${fmtD(jf)}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">J. form./agent</div></div>
-      <div class="kpi orange"><div class="kv">${abs}</div><div class="kl" style="font-size:${absN?'9.5':'10.5'}px;color:var(--gris2)">${absN?'abs. (nat. '+absN+')':'J. absentéisme'}</div></div>
-      <div class="kpi"><div class="kv">${fmtD(age)}</div><div class="kl" style="font-size:${ageN?'9.5':'10.5'}px;color:var(--gris2)">${ageN?'ans (nat. '+fmtD(ageN)+')':'Âge moyen'}</div></div>
-    </div>
-    ${drs.length?renderDRBlock(drs,'rh'):''}
+    <div class="kpi-row">${etptKpi}${cibKpi}${msKpi}${jfKpi}${absKpi}${ageKpi}</div>
+    ${aucuneDonneeMsg}
+    ${repTable}
     ${renderCmt(cm,'rh',_curId)}
   </div></div>`;
 }
-function renderImmobilier(sites,cms){
+function renderImmobilier(sites,cms,s){
   const c=CFG.c.IM, cm=cms.find(x=>x[CFG.c.CM.bloc]==='immobilier');
-  if(!sites.length) return secEmpty('🏛️','Situation Immobilière',cm,'full','immobilier');
-  const pub=sites.filter(s=>s[c.occ]==='Domaine public'), bail=sites.filter(s=>s[c.occ]==='Bail privé');
-  const totalM2=sites.reduce((s,r)=>s+(r[c.m2]||0),0), totalLoyer=bail.reduce((s,r)=>s+(r[c.loyer]||0),0);
-  const renderSites=(list,label,isBail)=>!list.length?'':
-    `<div class="sub-title">${label} (${list.length})</div><table class="dt" style="margin-bottom:8px"><thead><tr><th>Site</th><th>Adresse</th><th class="tr">m²</th><th class="tr">Coût/m²</th>${isBail?'<th class="tr">Loyer/an</th>':''}</tr></thead><tbody>${list.map(s=>`<tr><td class="tbold">${s[c.site]}</td><td class="td-sub">${s[c.adr]}</td><td class="tr">${fmt(s[c.m2])} m²</td><td class="tr">${fmt(s[c.cout])} €</td>${isBail?`<td class="tr">${fmt(s[c.loyer])} €</td>`:''}</tr>`).join('')}</tbody></table>`;
-  return`<div class="section full"><div class="sec-hdr"><span class="ico">🏛️</span><h3>Situation Immobilière</h3></div><div class="sec-body"><div class="kpi-row"><div class="kpi"><div class="kv">${pub.length+bail.length}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Sites</div></div><div class="kpi vert"><div class="kv" style="font-size:14px">${fmt(totalM2)}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">m² occupés</div></div><div class="kpi"><div class="kv">${pub.length}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Domaine public</div></div><div class="kpi orange"><div class="kv">${bail.length}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Baux privés</div></div>${totalLoyer?`<div class="kpi jaune"><div class="kv" style="font-size:13px">${fmt(totalLoyer)} €</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Loyers annuels</div></div>`:''}</div>${renderSites(pub,'Domaine public',false)}${renderSites(bail,'Baux privés',true)}${renderCmt(cm,'immobilier',_curId)}</div></div>`;
+  if(!_fBySigle) fBuildIdx();
+  const typeS=strVal(s?s[CFG.c.S.type]:'');
+  const IS_PARENT=HIER_FICHE.TYPES_AVEC_FILLES.has(typeS);
+
+  // Sites consolidés : propres + filles récursives
+  let tousSites=sites;
+  if(IS_PARENT){
+    const imAll=D.immobilier||[];
+    const filles=fDescendants(s);
+    const sitesFilles=filles.flatMap(function(f){return imAll.filter(function(r){return n(r[c.struct])===f.id;});});
+    tousSites=[...sites,...sitesFilles];
+  }
+  if(!tousSites.length) return secEmpty('🏛️','Situation Immobilière',cm,'full','immobilier');
+
+  const pub=tousSites.filter(r=>strVal(r[c.occ])==='Domaine public');
+  const bail=tousSites.filter(r=>strVal(r[c.occ])==='Bail privé');
+  const totalM2=tousSites.reduce((s,r)=>s+n(r[c.m2]),0);
+  const totalLoyer=bail.reduce((s,r)=>s+n(r[c.loyer]),0);
+
+  // Pour les DI : liste consolidée avec identification de la structure fille
+  const renderSite=(site, structNom)=>{
+    const structInfo=IS_PARENT&&structNom?`<span style="font-size:9px;color:var(--gris3);margin-left:4px;">[${structNom}]</span>`:'';
+    return `<tr><td class="tbold">${site[c.site]}${structInfo}</td><td class="td-sub">${site[c.adr]}</td><td class="tr">${fmt(n(site[c.m2]))} m²</td><td class="tr">${fmt(n(site[c.cout]))} €</td></tr>`;
+  };
+  const renderSiteBail=(site, structNom)=>{
+    const structInfo=IS_PARENT&&structNom?`<span style="font-size:9px;color:var(--gris3);margin-left:4px;">[${structNom}]</span>`:'';
+    return `<tr><td class="tbold">${site[c.site]}${structInfo}</td><td class="td-sub">${site[c.adr]}</td><td class="tr">${fmt(n(site[c.m2]))} m²</td><td class="tr">${fmt(n(site[c.cout]))} €</td><td class="tr">${fmt(n(site[c.loyer]))} €</td></tr>`;
+  };
+
+  // Résoudre le nom de la structure fille pour chaque site (si DI)
+  function getStructNom(site){
+    if(!IS_PARENT) return '';
+    const stId=n(site[c.struct]);
+    const st=(D.structures||[]).find(function(r){return r.id===stId;});
+    return st?strVal(st[CFG.c.S.sigle]||st[CFG.c.S.nom]||''):'';
+  }
+
+  const pubHtml=pub.length?
+    `<div class="sub-title">Domaine public (${pub.length} site${pub.length>1?'s':''})</div><table class="dt" style="margin-bottom:8px"><thead><tr><th>Site</th><th>Adresse</th><th class="tr">m²</th><th class="tr">Coût/m²</th></tr></thead><tbody>${pub.map(s=>renderSite(s,getStructNom(s))).join('')}</tbody></table>`:'';
+  const bailHtml=bail.length?
+    `<div class="sub-title">Baux privés (${bail.length} bail${bail.length>1?'s':''})</div><table class="dt" style="margin-bottom:8px"><thead><tr><th>Site</th><th>Adresse</th><th class="tr">m²</th><th class="tr">Coût/m²</th><th class="tr">Loyer/an</th></tr></thead><tbody>${bail.map(s=>renderSiteBail(s,getStructNom(s))).join('')}</tbody></table>`:'';
+
+  const titreConsolide=IS_PARENT&&tousSites.length>sites.length?' <span style="font-size:11px;font-weight:400;opacity:.7;">(consolidé)</span>':'';
+
+  return`<div class="section full"><div class="sec-hdr"><span class="ico">🏛️</span><h3>Situation Immobilière${titreConsolide}</h3></div><div class="sec-body">
+    <div class="kpi-row">
+      <div class="kpi"><div class="kv">${tousSites.length}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Sites</div></div>
+      <div class="kpi vert"><div class="kv" style="font-size:14px">${fmt(totalM2)}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">m² occupés</div></div>
+      <div class="kpi"><div class="kv">${pub.length}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Domaine public</div></div>
+      <div class="kpi orange"><div class="kv">${bail.length}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Baux privés</div></div>
+      ${totalLoyer?`<div class="kpi jaune"><div class="kv" style="font-size:13px">${fmt(totalLoyer)} €</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Loyers annuels</div></div>`:''}
+    </div>
+    ${pubHtml}${bailHtml}
+    ${renderCmt(cm,'immobilier',_curId)}
+  </div></div>`;
 }
-function renderVehicules(v,cms,drs){
+function renderVehicules(v,cms,drs,s){
   const c=CFG.c.VH, cm=cms.find(x=>x[CFG.c.CM.bloc]==='vehicules');
-  if(!v) return secEmpty('🚗','Parc de véhicules',cm,'','vehicules');
-  // Lire les moyennes nationales depuis la table Moyennes (1 seule ligne attendue)
+  if(!_fBySigle) fBuildIdx();
+  const typeS=strVal(s?s[CFG.c.S.type]:'');
+  const IS_PARENT=HIER_FICHE.TYPES_AVEC_FILLES.has(typeS);
+  const vhAll=fA(D.vehicules||[]);
+
+  // Si pas de données → masquer
+  const filles=IS_PARENT?fEnfantsDe(s):[];
+  const fillesAvecDonnees=filles.filter(function(f){return vhAll.some(function(r){return n(r[c.struct])===f.id;});});
+  if(!v&&!fillesAvecDonnees.length) return secEmpty('🚗','Parc de véhicules',cm,'','vehicules');
+
+  const annee=v?anneeAffichee([v],'Annee'):'';
   const mo=(D.moyennes||[])[0]||{};
-  const nb=n(v[c.nb]), vs=n(v[c.vet_s]), vn=nPct(mo[CFG.c.MO.vet_n])||n(v.TauxVetusteMoyenNational), ps=n(v[c.vpa_s]), pn=nPct(mo[CFG.c.MO.vpa_n])||n(v.VehiculesMoyenNational);
-  const clsV=vs>vn?'rouge':vs>vn*.8?'orange':'vert';
-  const vsTag=vs>vn?`<span class="vs-nat vs-bad">▲ +${(vs-vn).toFixed(0)} pts vs national</span>`:`<span class="vs-nat vs-ok">▼ ${(vn-vs).toFixed(0)} pts vs national</span>`;
-  const psTag=ps>pn?`<span class="vs-nat vs-bad">▲ +${(ps-pn).toFixed(2)} vs national</span>`:`<span class="vs-nat vs-ok">▼ ${(pn-ps).toFixed(2)} vs national</span>`;
-  return`<div class="section"><div class="sec-hdr"><span class="ico">🚗</span><h3>Parc de véhicules${vh?" <span style=\"font-size:11px;font-weight:400;opacity:.7;\">— "+n(vh[c.annee])+"</span>":""}</h3></div><div class="sec-body"><div class="kpi-row"><div class="kpi"><div class="kv">${nb}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Véhicules</div></div><div class="kpi ${clsV}"><div class="kv">${vs}%</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Vétusté structure</div></div><div class="kpi"><div class="kv" style="font-size:15px;color:var(--gris2)">${vn}%</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Vétusté nationale</div></div></div><div style="margin:4px 0 10px">${vsTag}</div><div class="prog-wrap"><div class="prog-label"><span>Vétusté structure</span><span>${vs}%</span></div><div class="prog-bar"><div class="prog-fill ${vs>40?'pf-danger':vs>25?'pf-warn':'pf-ok'}" style="width:${vs}%"></div></div></div><div class="kpi-row" style="margin-top:10px"><div class="kpi ${ps>pn?'rouge':'vert'}"><div class="kv">${ps.toFixed(2)}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Véh./agent (struct.)</div></div><div class="kpi"><div class="kv" style="font-size:15px;color:var(--gris2)">${pn.toFixed(2)}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Véh./agent (nat.)</div></div></div><div style="margin:4px 0 8px">${psTag}</div>${drs.length?renderDRBlock(drs,'vehicules'):''}${renderCmt(cm,'vehicules',_curId)}</div></div>`;
+  const vn=nPct(mo[CFG.c.MO.vet_n])||n(v?v[c.vet_n]:0);
+  const pn=nPct(mo[CFG.c.MO.vpa_n])||n(v?v[c.vpa_n]:0);
+
+  // Valeurs consolidées
+  const nbTot=IS_PARENT?Math.round(fConsoVal(s,vhAll,c.struct,function(r){return n(r[c.nb]);})):v?n(v[c.nb]):0;
+  // Vétusté : moyenne simple des structures avec données
+  const allRows=IS_PARENT?[v].concat(fillesAvecDonnees.map(function(f){return vhAll.find(function(r){return n(r[c.struct])===f.id;});})).filter(Boolean):(v?[v]:[]);
+  const vets=allRows.map(function(r){return n(r[c.vet_s]);}).filter(Boolean);
+  const vs=vets.length?Math.round(vets.reduce(function(a,b){return a+b;},0)/vets.length):0;
+  const ps=v?n(v[c.vpa_s]):0;
+
+  const clsV=vs>vn?'rouge':vs>vn*0.8?'orange':'vert';
+  const vsTag=vs>vn?`<span class="vs-nat vs-bad">▲ +${(vs-vn).toFixed(0)} pts vs nat.</span>`:`<span class="vs-nat vs-ok">▼ ${(vn-vs).toFixed(0)} pts vs nat.</span>`;
+  const psTag=ps>pn?`<span class="vs-nat vs-bad">▲</span>`:`<span class="vs-nat vs-ok">▼</span>`;
+
+  // Tableau filles
+  let repTable='';
+  if(IS_PARENT&&fillesAvecDonnees.length>0){
+    const lignes=fillesAvecDonnees.map(function(f){
+      const rf=vhAll.find(function(r){return n(r[c.struct])===f.id;});
+      if(!rf) return '';
+      const fnb=n(rf[c.nb]), fvs=n(rf[c.vet_s]), fps=n(rf[c.vpa_s]).toFixed(2);
+      const fclsV=fvs>vn?'rouge':fvs>vn*0.8?'orange':'vert';
+      const fnm=strVal(f[CFG.c.S.nom]||''), fsig=strVal(f[CFG.c.S.sigle]||'');
+      return `<tr>
+        <td class="tbold">${fsig||fnm}</td>
+        <td style="font-size:10px;color:var(--gris2)">${fsig?fnm:''}</td>
+        <td class="tr">${fnb||'—'}</td>
+        <td class="tr"><span style="color:var(--${fclsV})">${fvs}%</span></td>
+        <td class="tr">${fps}</td>
+      </tr>`;
+    }).filter(Boolean).join('');
+    if(lignes){
+      repTable=`<div class="repartition-wrap">
+        <div class="repartition-titre">Répartition par direction fille</div>
+        <table class="repartition-table">
+          <thead><tr><th>Sigle</th><th>Structure</th><th class="tr">Nb véhicules</th><th class="tr">Vétusté</th><th class="tr">Véh./agent</th></tr></thead>
+          <tbody>${lignes}</tbody>
+          <tr class="rep-total"><td colspan="2">Total consolidé</td><td class="tr">${nbTot}</td><td class="tr">${vs}%</td><td>—</td></tr>
+        </table></div>`;
+    }
+  }
+
+  return`<div class="section"><div class="sec-hdr"><span class="ico">🚗</span><h3>Parc de véhicules${annee?' <span style="font-size:11px;font-weight:400;opacity:.7;">— '+annee+'</span>':''}</h3></div><div class="sec-body">
+    <div class="kpi-row">
+      <div class="kpi"><div class="kv">${nbTot}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Véhicules${IS_PARENT?' (consolid\u00e9s)':''}</div></div>
+      <div class="kpi ${clsV}"><div class="kv">${vs}%</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Vétusté${IS_PARENT?' moy.':' structure'}</div></div>
+      <div class="kpi"><div class="kv" style="font-size:15px;color:var(--gris2)">${vn}%</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Vétusté nationale</div></div>
+      ${!IS_PARENT&&ps?`<div class="kpi ${ps>pn?'rouge':'vert'}"><div class="kv">${ps.toFixed(2)}</div><div class="kl" style="font-size:10.5px;color:var(--gris2)">Véh./agent ${psTag}</div></div>`:''}
+    </div>
+    <div style="margin:4px 0 8px">${vsTag}</div>
+    ${repTable}
+    ${renderCmt(cm,'vehicules',_curId)}
+  </div></div>`;
 }
 function renderFraisMission(data,cms){
   const c=CFG.c.FM, cm=cms.find(x=>x[CFG.c.CM.bloc]==='fraisMission');
@@ -2094,6 +2337,190 @@ function renderFraisMission(data,cms){
   };
   return`<div class="section full"><div class="sec-hdr"><span class="ico">✈️</span><h3>Frais de mission — 4 ans</h3></div><div class="sec-body">${types.map(t=>renderType(t)).join('')}<div class="legend"><div class="leg-item"><div class="leg-dot" style="background:#1351A8"></div>Transport</div><div class="leg-item"><div class="leg-dot" style="background:#C05A00"></div>Hébergement</div><div class="leg-item"><div class="leg-dot" style="background:#1A6B3C"></div>Repas</div></div>${renderCmt(cm,'fraisMission',_curId)}</div></div>`;
 }
+/* ════════════════════════════════════════════════════
+   BLOC INFORMATIQUE
+   Affiché pour DI, SCN, DR autonomes
+   4 années fixes (2022-2025) sans détail des filles
+   ETPT consolidé DI+DR pour les DI
+════════════════════════════════════════════════════ */
+function renderInformatique(s, cm_list){
+  if(!_fBySigle) fBuildIdx();
+  const c=CFG.c.IT;
+  const cm=cm_list.find(function(x){return x[CFG.c.CM.bloc]==='informatique';});
+  const typeS=strVal(s[CFG.c.S.type]);
+  const sigle=strVal(s[CFG.c.S.sigle]||'').trim();
+
+  // Ne s'affiche que pour DI, SCN, DR autonomes
+  const TYPES_IT=new Set(['DI','SCN','Siège','siège','SIEGE','DR']);
+  if(!TYPES_IT.has(typeS)) return '';
+
+  const ANNEES=[2022,2023,2024,2025];
+  const itAll=D.informatique||[];
+  const rhAll=D.rh||[];
+
+  // Données informatiques pour cette structure (sans consolidation filles)
+  const itRows=itAll.filter(function(r){return n(r[c.struct])===s.id;});
+  if(!itRows.length) return secEmpty('💻','Informatique',null,'','informatique');
+
+  // ETPT consolidé pour chaque année (DI = propre + filles DR)
+  function etptAnnee(annee){
+    var all=[s].concat(fDescendants(s));
+    var total=0;
+    all.forEach(function(d){
+      var row=rhAll.find(function(r){return n(r[CFG.c.RH.struct])===d.id&&Number(r[CFG.c.RH.annee])===annee;});
+      if(row) total+=Math.round(n(row[CFG.c.RH.etpt_tot])||n(row[CFG.c.RH.etpt_su])+n(row[CFG.c.RH.etpt_agco]));
+    });
+    return total;
+  }
+
+  // Données par année
+  var data=ANNEES.map(function(annee){
+    var row=itRows.find(function(r){return Number(r[c.annee])===annee;});
+    var etpt=etptAnnee(annee);
+    var dep=row?n(row[c.dep]):null;
+    var pcp=row?n(row[c.pcp]):null;
+    var pcb=row?n(row[c.pcb]):null;
+    var pctot=(pcp!==null&&pcb!==null)?pcp+pcb:null;
+    var taux=(pctot!==null&&etpt>0)?(pctot/etpt*100):null;
+    return {annee:annee, dep:dep, pcp:pcp, pcb:pcb, pctot:pctot, etpt:etpt, taux:taux};
+  });
+
+  var anneesConso=data.filter(function(d){return d.dep!==null;});
+  // Coût moyen 4 ans = moy(dépenses) / moy(ETPT) sur les années avec données
+  var moyDep=anneesConso.length?anneesConso.reduce(function(s,d){return s+(d.dep||0);},0)/anneesConso.length:0;
+  var etptArr=anneesConso.map(function(d){return d.etpt;}).filter(Boolean);
+  var moyEtpt=etptArr.length?etptArr.reduce(function(a,b){return a+b;},0)/etptArr.length:0;
+  var coutMoyen4ans=moyEtpt>0?Math.round(moyDep/moyEtpt):null;
+
+  // Taux équipement année la plus récente avec données
+  var derniere=anneesConso[anneesConso.length-1];
+  var tauxEquip=derniere?derniere.taux:null;
+
+  // Moyennes de référence depuis D.moyennes
+  var mo=(D.moyennes||[])[0]||{};
+  var SIGLES_OM=new Set(['DI 972','DR 974','DR 976','DR 988','DR 987']);
+  // Ajouter Saint-Pierre (pas de sigle fixe — chercher par nom)
+  var spm=(D.structures||[]).find(function(x){return (x.Nom||x.nom||'').indexOf('Pierre')!==-1;});
+  if(spm) SIGLES_OM.add(strVal(spm[CFG.c.S.sigle]||'').trim());
+
+  var isOM=SIGLES_OM.has(sigle);
+  var refLabel, refDep, refTaux;
+  if(typeS==='DI'||typeS==='Siège'||['siège','SIEGE'].includes(typeS)){
+    refLabel='Moy. DI';
+    refDep=nPct(mo[CFG.c.MO.info_dep_di])||calculerMoyRef('DI',null);
+    refTaux=nPct(mo[CFG.c.MO.info_tx_di])||calculerTauxRef('DI',null);
+  } else if(typeS==='SCN'){
+    refLabel='Moy. SCN';
+    refDep=nPct(mo[CFG.c.MO.info_dep_scn])||calculerMoyRef('SCN',null);
+    refTaux=nPct(mo[CFG.c.MO.info_tx_scn])||calculerTauxRef('SCN',null);
+  } else {
+    refLabel='Moy. Outremer';
+    refDep=nPct(mo[CFG.c.MO.info_dep_om])||calculerMoyRef('DR',SIGLES_OM);
+    refTaux=nPct(mo[CFG.c.MO.info_tx_om])||calculerTauxRef('DR',SIGLES_OM);
+  }
+
+  // Tableau 4 années
+  var lignes=['DepensesBureautique','NbPCPortable','NbPCBureau','TotalPC','ETPT','TauxEquip'];
+  var libelles={'DepensesBureautique':'Dépenses (€)','NbPCPortable':'PC Portable','NbPCBureau':'PC Bureau','TotalPC':'Total PC','ETPT':'ETPT','TauxEquip':'Taux équip. (%)'};
+
+  var tblCols='<div class="info-annee-col"><div class="info-annee-hdr">Indicateur</div>'
+    +Object.values(libelles).map(function(l){return '<div class="info-row-lbl">'+l+'</div>';}).join('')
+    +'</div>';
+
+  data.forEach(function(d){
+    var vals=[
+      d.dep!==null?fmt(Math.round(d.dep))+' €':'—',
+      d.pcp!==null?d.pcp:'—',
+      d.pcb!==null?d.pcb:'—',
+      d.pctot!==null?d.pctot:'—',
+      d.etpt||'—',
+      d.taux!==null?d.taux.toFixed(1)+'%':'—',
+    ];
+    tblCols+='<div class="info-annee-col">'
+      +'<div class="info-annee-hdr">'+d.annee+'</div>'
+      +vals.map(function(v){return '<div class="info-annee-val">'+v+'</div>';}).join('')
+      +'</div>';
+  });
+
+  // Indicateurs synthèse
+  var clsDep=refDep&&coutMoyen4ans?(coutMoyen4ans>refDep*1.1?'rouge':coutMoyen4ans<refDep*0.9?'vert':''):'';
+  var clsTaux=refTaux&&tauxEquip?(tauxEquip<refTaux*0.9?'rouge':tauxEquip>refTaux*1.1?'vert':''):'';
+
+  return '<div class="section full"><div class="sec-hdr"><span class="ico">💻</span><h3>Informatique bureautique</h3></div><div class="sec-body">'
+    +'<div class="info-annees">'+tblCols+'</div>'
+    +'<div class="info-indicateurs">'
+    +'<div class="info-kpi-card">'
+    +'<div class="info-kpi-val '+(clsTaux)+'">'+(tauxEquip!==null?tauxEquip.toFixed(1)+'%':'—')+'</div>'
+    +'<div class="info-kpi-lbl">Taux d\'équipement ('+ANNEES[ANNEES.length-1]+')</div>'
+    +(refTaux?'<div class="info-ref"><span class="info-ref-item"><span class="info-ref-dot" style="background:var(--gris3)"></span>'+refLabel+' : '+refTaux.toFixed(1)+'%</span></div>':'')
+    +'</div>'
+    +'<div class="info-kpi-card">'
+    +'<div class="info-kpi-val '+(clsDep)+'">'+(coutMoyen4ans!==null?fmt(coutMoyen4ans)+' €':'—')+'</div>'
+    +'<div class="info-kpi-lbl">Coût moyen par ETPT (2022-2025)</div>'
+    +(refDep?'<div class="info-ref"><span class="info-ref-item"><span class="info-ref-dot" style="background:var(--gris3)"></span>'+refLabel+' : '+fmt(Math.round(refDep))+' €</span></div>':'')
+    +'</div>'
+    +'</div>'
+    +(cm?renderCmt(cm,'informatique',_curId):'')
+    +'</div></div>';
+}
+
+/* Calcule dynamiquement la moyenne de référence pour un type de structure */
+function calculerMoyRef(typeRef, siglesOM){
+  var c=CFG.c.IT, rhC=CFG.c.RH;
+  var ANNEES=[2022,2023,2024,2025];
+  var structs=(D.structures||[]).filter(function(s){
+    var t=strVal(s[CFG.c.S.type]);
+    if(siglesOM) return siglesOM.has(strVal(s[CFG.c.S.sigle]||'').trim());
+    return t===typeRef;
+  });
+  var vals=[];
+  structs.forEach(function(s){
+    var anneesConso=ANNEES.filter(function(a){
+      return (D.informatique||[]).some(function(r){return n(r[c.struct])===s.id&&Number(r[c.annee])===a;});
+    });
+    if(!anneesConso.length) return;
+    var all=[s].concat(fDescendants(s));
+    var moyDep=anneesConso.reduce(function(tot,a){
+      var row=(D.informatique||[]).find(function(r){return n(r[c.struct])===s.id&&Number(r[c.annee])===a;});
+      return tot+(row?n(row[c.dep]):0);
+    },0)/anneesConso.length;
+    var etptArr=anneesConso.map(function(a){
+      return all.reduce(function(t,d){
+        var rh=(D.rh||[]).find(function(r){return n(r[rhC.struct])===d.id&&Number(r[rhC.annee])===a;});
+        return t+(rh?Math.round(n(rh[rhC.etpt_tot])||n(rh[rhC.etpt_su])+n(rh[rhC.etpt_agco])):0);
+      },0);
+    }).filter(Boolean);
+    var moyEtpt=etptArr.length?etptArr.reduce(function(a,b){return a+b;},0)/etptArr.length:0;
+    if(moyEtpt>0) vals.push(moyDep/moyEtpt);
+  });
+  return vals.length?vals.reduce(function(a,b){return a+b;},0)/vals.length:0;
+}
+
+function calculerTauxRef(typeRef, siglesOM){
+  var c=CFG.c.IT, rhC=CFG.c.RH;
+  var structs=(D.structures||[]).filter(function(s){
+    var t=strVal(s[CFG.c.S.type]);
+    if(siglesOM) return siglesOM.has(strVal(s[CFG.c.S.sigle]||'').trim());
+    return t===typeRef;
+  });
+  var vals=[];
+  structs.forEach(function(s){
+    var dernierRow=(D.informatique||[]).filter(function(r){return n(r[c.struct])===s.id;})
+      .sort(function(a,b){return Number(b[c.annee])-Number(a[c.annee]);})[0];
+    if(!dernierRow) return;
+    var annee=Number(dernierRow[c.annee]);
+    var all=[s].concat(fDescendants(s));
+    var etpt=all.reduce(function(t,d){
+      var rh=(D.rh||[]).find(function(r){return n(r[rhC.struct])===d.id&&Number(r[rhC.annee])===annee;});
+      return t+(rh?Math.round(n(rh[rhC.etpt_tot])||n(rh[rhC.etpt_su])+n(rh[rhC.etpt_agco])):0);
+    },0);
+    var pctot=n(dernierRow[c.pcp])+n(dernierRow[c.pcb]);
+    if(etpt>0) vals.push(pctot/etpt*100);
+  });
+  return vals.length?vals.reduce(function(a,b){return a+b;},0)/vals.length:0;
+}
+
+
 function renderDRBlock(drs,indicateur){
   if(!drs.length) return '';
   const uid='dr-'+indicateur+'-'+Math.random().toString(36).slice(2,7);
