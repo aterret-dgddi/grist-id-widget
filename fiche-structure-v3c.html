@@ -70,19 +70,27 @@ body{font-family:'Cabin',sans-serif;background:#F2F5FA;color:var(--gris1);line-h
 
 .qnav-btn {
   border: none;
-  padding: 4px 10px;
-  border-radius: 12px;
+  padding: 4px 12px;
+  border-radius: 14px;
   font-size: 13px;
   cursor: pointer;
-  margin: 2px;
+  margin: 3px 4px;
   color: white;
   font-weight: 600;
+  white-space: nowrap;
 }
 
-.qnav-btn.Siège     { background: #003366; }   /* bleu foncé */
-.qnav-btn.DI        { background: #007bff; }   /* bleu vif */
-.qnav-btn.Outremer  { background: #6f42c1; }   /* violet */
-.qnav-btn.SCN       { background: #198754; }   /* vert */
+.qnav-btn.Siège     { background: #003366; }
+.qnav-btn.DI        { background: #007bff; }
+.qnav-btn.Outremer  { background: #6f42c1; }
+.qnav-btn.SCN       { background: #198754; }
+
+.qnav-btn.active {
+  outline: 2px solid #fff;
+  box-shadow: 0 0 4px rgba(0,0,0,0.3);
+  filter: brightness(1.15);
+}
+
 
 
 /* Champ de recherche */
@@ -188,13 +196,6 @@ body{font-family:'Cabin',sans-serif;background:#F2F5FA;color:var(--gris1);line-h
 #qnav-items{display:contents;}
 .qnav-label{font-size:10.5px;color:var(--gris3);flex-shrink:0;white-space:nowrap;align-self:center;margin-right:2px;}
 .qnav-sep{width:1px;height:16px;background:var(--bord);flex-shrink:0;align-self:center;}
-.qnav-btn{
-  padding:3px 9px;background:var(--gris4);border:1px solid var(--bord);
-  border-radius:20px;font-size:10.5px;font-weight:600;color:var(--gris2);
-  cursor:pointer;transition:all .15s;white-space:nowrap;
-}
-.qnav-btn:hover{background:var(--rep-pale);border-color:var(--rep2);color:var(--rep);}
-.qnav-btn.active{background:var(--rep);border-color:var(--rep);color:#fff;}
 
 
 
@@ -1486,16 +1487,18 @@ function selectStructure(id){
     o.classList.toggle('active', parseInt(o.dataset.id) === id);
   });
 
-  document.querySelectorAll('.qnav-btn').forEach(b => {
-    b.classList.toggle('active', parseInt(b.dataset.id) === id);
+  // 🔵 Correction : suppression de l'ancien actif
+  document.querySelectorAll('.qnav-btn').forEach(btn => {
+    btn.classList.remove('active');
   });
-  
-  const region = current[CFG.c.S.region];
-const btn = document.querySelector(`.qnav-btn[data-id="${current.id}"]`);
-if (btn) btn.classList.add('active');
+
+  // 🔵 Correction : activation du bon pill
+  const qbtn = document.querySelector(`.qnav-btn[data-id="${current.id}"]`);
+  if (qbtn) qbtn.classList.add('active');
 
   renderFiche(current);
 }
+
 
 
 /* ═══════════════════════════════════════════════════════
@@ -1511,10 +1514,18 @@ function buildQuickNav() {
 
   const ordreRegion = ["Siège", "DI", "Outremer", "SCN"];
 
-  // Filtrer uniquement les structures ayant une région valide
-  const filtrées = S.filter(s =>
-    ordreRegion.includes((s[CFG.c.S.region] || "").trim())
-  );
+  // Filtrer selon tes règles
+  const filtrées = S.filter(s => {
+    const region = (s[CFG.c.S.region] || "").trim();
+    const sigle  = (s[CFG.c.S.sigle]  || "").trim();
+    const parent = (s[CFG.c.S.parent] || "").trim();
+
+    return (
+      ordreRegion.includes(region) &&
+      sigle !== "" &&
+      parent === "DGDDI"
+    );
+  });
 
   // Trier par région puis par sigle
   const triées = filtrées.slice().sort((a, b) => {
@@ -1527,10 +1538,11 @@ function buildQuickNav() {
     return sA.localeCompare(sB);
   });
 
+  // Construire les pills
   let html = "";
   triées.forEach(s => {
     const region = s[CFG.c.S.region];
-    const sigle = s[CFG.c.S.sigle] || "";
+    const sigle  = s[CFG.c.S.sigle];
     html += `
       <button class="qnav-btn ${region}"
               data-id="${s.id}"
