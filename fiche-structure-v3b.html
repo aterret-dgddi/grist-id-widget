@@ -1197,8 +1197,31 @@ function build(){
 }
 
 /* ═══════════════════════════════════════════════════════
+   INDEX STRUCTURES (SIGLE + ID)
+═══════════════════════════════════════════════════════ */
+
+var _fBySigle = null;
+var _fById = null;
+
+function fBuildIdx(){
+  _fBySigle = {};
+  _fById = {};
+
+  (D.structures || []).forEach(function(s){
+    _fById[s.id] = s;
+
+    const sg = strVal(s[CFG.c.S.sigle] || '').trim();
+    if (sg) _fBySigle[sg] = s;
+  });
+}
+
+
+
+/* ═══════════════════════════════════════════════════════
    DROPDOWN — LISTE DES STRUCTURES (SIGLES + TRI REGION)
 ═══════════════════════════════════════════════════════ */
+
+
 
 function selectorStructures(){
   if(!_fBySigle) fBuildIdx();
