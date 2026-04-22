@@ -2841,9 +2841,10 @@ var mo = (D.moyennes || []).find(x => Number(x.Annee) === ANNEES[ANNEES.length-1
          || (D.moyennes || [])[0] 
          || {};
 
-  var SIGLES_OM = new Set(['DI 972','DR 974','DR 976','DR 988','DR 987']);
-  var spm = (D.structures || []).find(x => (x.Nom || x.nom || '').indexOf('Pierre') !== -1);
-  if(spm) SIGLES_OM.add(strVal(spm[CFG.c.S.sigle] || '').trim());
+ // Détection Outremer fiable via la colonne Region
+var region = strVal(s[CFG.c.S.region] || '').trim();
+var isOM = (region === 'Outremer');
+
 
   var refLabel, refDep, refTaux;
 
@@ -2856,10 +2857,11 @@ var mo = (D.moyennes || []).find(x => Number(x.Annee) === ANNEES[ANNEES.length-1
     refDep = nPct(mo[CFG.c.MO.info_dep_scn]) || calculerMoyRef('SCN', null);
     refTaux = nPct(mo[CFG.c.MO.info_tx_scn]) || calculerTauxRef('SCN', null);
   } else {
-    refLabel = 'Moy. Outremer';
-    refDep = nPct(mo[CFG.c.MO.info_dep_om]) || calculerMoyRef('DR', SIGLES_OM);
-    refTaux = nPct(mo[CFG.c.MO.info_tx_om]) || calculerTauxRef('DR', SIGLES_OM);
-  }
+  refLabel = 'Moy. Outremer';
+  refDep = nPct(mo[CFG.c.MO.info_dep_om]) || calculerMoyRef('DR', null);
+  refTaux = nPct(mo[CFG.c.MO.info_tx_om]) || calculerTauxRef('DR', null);
+}
+
 
   // Moyenne nationale (nouveau)
   var refDepNat = nPct(mo[CFG.c.MO.info_dep_nat]) || calculerMoyRef(null, null);
@@ -2938,11 +2940,16 @@ var mo = (D.moyennes || []).find(x => Number(x.Annee) === ANNEES[ANNEES.length-1
 function calculerMoyRef(typeRef, siglesOM){
   var c=CFG.c.IT, rhC=CFG.c.RH;
   var ANNEES=[2022,2023,2024,2025];
-  var structs=(D.structures||[]).filter(function(s){
-    var t=strVal(s[CFG.c.S.type]);
-    if(siglesOM) return siglesOM.has(strVal(s[CFG.c.S.sigle]||'').trim());
-    return t===typeRef;
-  });
+var structs = (D.structures || []).filter(function(s){
+  var region = strVal(s[CFG.c.S.region] || '').trim();
+
+  if(typeRef === 'DI') return strVal(s[CFG.c.S.type]) === 'DI';
+  if(typeRef === 'SCN') return strVal(s[CFG.c.S.type]) === 'SCN';
+  if(typeRef === 'DR') return region === 'Outremer';   // ⭐ nouveau périmètre OM
+
+  if(typeRef === null) return true; // national
+});
+
   var vals=[];
   structs.forEach(function(s){
     var anneesConso=ANNEES.filter(function(a){
@@ -2968,11 +2975,16 @@ function calculerMoyRef(typeRef, siglesOM){
 
 function calculerTauxRef(typeRef, siglesOM){
   var c=CFG.c.IT, rhC=CFG.c.RH;
-  var structs=(D.structures||[]).filter(function(s){
-    var t=strVal(s[CFG.c.S.type]);
-    if(siglesOM) return siglesOM.has(strVal(s[CFG.c.S.sigle]||'').trim());
-    return t===typeRef;
-  });
+ var structs = (D.structures || []).filter(function(s){
+  var region = strVal(s[CFG.c.S.region] || '').trim();
+
+  if(typeRef === 'DI') return strVal(s[CFG.c.S.type]) === 'DI';
+  if(typeRef === 'SCN') return strVal(s[CFG.c.S.type]) === 'SCN';
+  if(typeRef === 'DR') return region === 'Outremer';   // ⭐ nouveau périmètre OM
+
+  if(typeRef === null) return true; // national
+});
+
   var vals=[];
   structs.forEach(function(s){
     var dernierRow=(D.informatique||[]).filter(function(r){return n(r[c.struct])===s.id;})
