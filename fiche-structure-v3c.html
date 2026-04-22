@@ -62,6 +62,29 @@ body{font-family:'Cabin',sans-serif;background:#F2F5FA;color:var(--gris1);line-h
 /* Conteneur du sélecteur custom */
 #selector-wrap{position:relative;flex:1;max-width:520px;}
 
+.qnav-btn.active {
+  outline: 2px solid #fff;
+  box-shadow: 0 0 4px rgba(0,0,0,0.3);
+  filter: brightness(1.15);
+}
+
+.qnav-btn {
+  border: none;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 13px;
+  cursor: pointer;
+  margin: 2px;
+  color: white;
+  font-weight: 600;
+}
+
+.qnav-btn.Siège     { background: #003366; }   /* bleu foncé */
+.qnav-btn.DI        { background: #007bff; }   /* bleu vif */
+.qnav-btn.Outremer  { background: #6f42c1; }   /* violet */
+.qnav-btn.SCN       { background: #198754; }   /* vert */
+
+
 /* Champ de recherche */
 #sel-input{
   width:100%;
@@ -1474,34 +1497,34 @@ function selectStructure(id){
 /* ==== 1. Sélecteur rapide : sigle uniquement ==== */
 
 function buildQuickNav() {
-console.log("QNAV:", D.structures);
-  const cont = document.getElementById('qnav');
+  const cont = document.getElementById('qnav-items');
   if (!cont || !D || !D.structures) return;
 
   const S = D.structures || [];
-  const ordreRegion = { "Siège": 1, "DI": 2, "Outremer": 3, "SCN": 4 };
 
-  const structsTries = S.slice().sort((a, b) => {
-    const rA = ordreRegion[a[CFG.c.S.region]] || 99;
-    const rB = ordreRegion[b[CFG.c.S.region]] || 99;
-    if (rA !== rB) return rA - rB;
+  const regions = ["Siège", "DI", "Outremer", "SCN"];
 
-    const sA = (a[CFG.c.S.sigle] || "").toUpperCase();
-    const sB = (b[CFG.c.S.sigle] || "").toUpperCase();
-    return sA.localeCompare(sB);
-  });
+  const existantes = regions.filter(r =>
+    S.some(s => (s[CFG.c.S.region] || "").trim() === r)
+  );
 
   let html = "";
-  structsTries.forEach(s => {
-    const sigle = s[CFG.c.S.sigle] || "";
+  existantes.forEach(region => {
     html += `
-      <button class="qnav-btn" data-id="${s.id}"
-              onclick="selectStructure(${s.id})">
-        ${sigle}
+      <button class="qnav-btn ${region}"
+              data-region="${region}"
+              onclick="selectFirstOfRegion('${region}')">
+        ${region}
       </button>`;
   });
 
   cont.innerHTML = html;
+}
+
+function selectFirstOfRegion(region) {
+  const S = D.structures || [];
+  const first = S.find(s => (s[CFG.c.S.region] || "").trim() === region);
+  if (first) selectStructure(first.id);
 }
 
 /* ==== 2. Dropdown : badge + sigle + nom long, tri par région ==== */
@@ -1631,6 +1654,16 @@ function selectStructure(id) {
   document.querySelectorAll('.qnav-btn').forEach(b => {
     b.classList.toggle('active', parseInt(b.dataset.id, 10) === id);
   });
+
+// Mise en surbrillance du bouton de région
+document.querySelectorAll('.qnav-btn').forEach(btn => {
+  btn.classList.remove('active');
+});
+
+const region = current[CFG.c.S.region];
+const btn = document.querySelector(`.qnav-btn[data-region="${region}"]`);
+if (btn) btn.classList.add('active');
+
 
   closeDropdown();
   renderFiche(current);
