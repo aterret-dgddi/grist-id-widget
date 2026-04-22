@@ -1445,41 +1445,182 @@ function selectStructure(id){
 /* ═══════════════════════════════════════════════════════
    NAVIGATION RAPIDE (raccourcis)
 ═══════════════════════════════════════════════════════ */
-function buildQuickNav(){
-  if(!_fBySigle) fBuildIdx();
-  const SIGLE_DGDDI='DGDDI';
-  // Inclure : DI, SCN, DR autonomes (parent = DGDDI ou pas de parent DI)
-  const TYPES_QNAV=new Set(['DI','SCN','Siège','siège','SIEGE']);
-  const all=(D.structures||[]).filter(function(s){
-    const typeS=strVal(s[CFG.c.S.type]);
-    const parentRaw=strVal(s[CFG.c.S.parent]||'').trim();
-    // DI, SCN, Siège
-    if(TYPES_QNAV.has(typeS)) return true;
-    // DR autonomes : parent = DGDDI (pas rattachées à une DI)
-    if(typeS==='DR'){
-      // parent est DGDDI (texte) ou une structure dont le sigle = DGDDI
-      if(parentRaw===SIGLE_DGDDI) return true;
-      var parentStruct=_fBySigle[parentRaw]||_fById[parseInt(parentRaw)];
-      if(parentStruct&&strVal(parentStruct[CFG.c.S.sigle]||'').trim()===SIGLE_DGDDI) return true;
-    }
-    return false;
+/* ==== 1. Sélecteur rapide : sigle uniquement ==== */
+
+function buildQuickNav() {
+  const cont = document.getElementById('qnav');
+  if (!cont || !D || !D.structures) return;
+
+  const S = D.structures || [];
+  const ordreRegion = { "Siège": 1, "DI": 2, "Outremer": 3, "SCN": 4 };
+
+  const structsTries = S.slice().sort((a, b) => {
+    const rA = ordreRegion[a[CFG.c.S.region]] || 99;
+    const rB = ordreRegion[b[CFG.c.S.region]] || 99;
+    if (rA !== rB) return rA - rB;
+
+    const sA = (a[CFG.c.S.sigle] || "").toUpperCase();
+    const sB = (b[CFG.c.S.sigle] || "").toUpperCase();
+    return sA.localeCompare(sB);
   });
-  // Trier : Siège en premier, puis DI par sigle, puis DR autonomes, puis SCN
-  const order={'Siège':0,'siège':0,'SIEGE':0,'DI':1,'DR':2,'SCN':3};
-  all.sort(function(a,b){
-    const ta=strVal(a[CFG.c.S.type]), tb=strVal(b[CFG.c.S.type]);
-    const oa=order[ta]||9, ob=order[tb]||9;
-    if(oa!==ob) return oa-ob;
-    return strVal(a[CFG.c.S.sigle]||'').localeCompare(strVal(b[CFG.c.S.sigle]||''),'fr');
+
+  let html = "";
+  structsTries.forEach(s => {
+    const sigle = s[CFG.c.S.sigle] || "";
+    html += `
+      <button class="qnav-btn" data-id="${s.id}"
+              onclick="selectStructure(${s.id})">
+        ${sigle}
+      </button>`;
   });
-  const container=document.getElementById('qnav-items');
-  container.innerHTML=all.map(function(s){
-    // Utiliser $Sigle directement
-    const sigle=strVal(s[CFG.c.S.sigle]||'');
-    const label=sigle||strVal(s[CFG.c.S.nom]||'').replace('Direction Générale','DG').replace('Direction Interrégionale','DI').replace('Service à Compétence Nationale','SCN');
-    return '<div class="qnav-btn" data-id="'+s.id+'" onclick="selectStructure('+s.id+')" title="'+strVal(s[CFG.c.S.nom]||'')+'">'+label+'</div>';
-  }).join('');
+
+  cont.innerHTML = html;
 }
+
+/* ==== 2. Dropdown : badge + sigle + nom long, tri par région ==== */
+
+function renderDropdownList(query) {
+  const list = document.getElementById('sel-list');
+  if (!list || !D || !D.structures) return;
+
+  const structs = selectorStructures();
+  const q = (query || "").toLowerCase().trim();
+  const ordreRegion = { "Siège": 1, "DI": 2, "Outremer": 3, "SCN": 4 };
+
+  const structsTries = structs.slice().sort((a, b) => {
+    const rA = ordreRegion[a[CFG.c.S.region]] || 99;
+    const rB = ordreRegion[b[CFG.c.S.region]] || 99;
+    if (rA !== rB) return rA - rB;
+
+    const sA = (a[CFG.c.S.sigle] || "").toUpperCase();
+    const sB = (b[CFG.c.S.sigle] || "").toUpperCase();
+    return sA.localeCompare(sB);
+  });
+
+  filteredOptions = [];
+  const groups = { "Siège": [], "DI": [], "Outremer": [], "SCN": [] };
+  const gLabels = {
+    "Siège": "Siège DG",
+    "DI": "Directions interrégionales",
+    "Outremer": "Outremer",
+    "SCN": "Services à compétence nationale"
+  };
+
+  structsTries.forEach(s => {
+    const sigle = (s[CFG.c.S.sigle] || "").toLowerCase();
+    const nom   = (s[CFG.c.S.nom]   || "").toLowerCase();
+    const region= (s[CFG.c.S.region]|| "").toLowerCase();
+    const chef  = (s[CFG.c.S.chef]  || "").toLowerCase();
+
+    if (!q || sigle.includes(q) || nom.includes(q) || region.includes(q) || chef.includes(q)) {
+      if (groups[s[CFG.c.S.region]]) {
+        groups[s[CFG.c.S.region]].push(s);
+      }
+      filteredOptions.push(s);
+    }
+  });
+
+  let html = "";
+
+  ["Siège","DI","Outremer","SCN"].forEach(region => {
+    const arr = groups[region];
+    if (!arr || !arr.length) return;
+
+    html += `<div class="sel-group-header">${gLabels[region]}</div>`;
+
+    arr.forEach(s => {
+      const active = current && current.id === s.id ? " active" : "";
+      const sigle  = s[CFG.c.S.sigle] || "";
+      const nom    = s[CFG.c.S.nom]   || "";
+      const type   = s[CFG.c.S.type]  || "";
+
+      html += `
+        <div class="sel-option${active}" data-id="${s.id}"
+             onclick="selectStructure(${s.id})">
+          <span class="badge b-${type}">${type}</span>
+          <span class="opt-sigle">${sigle}</span>
+          <span class="opt-name">${nom}</span>
+        </div>`;
+    });
+  });
+
+  if (!filteredOptions.length) {
+    html = `<div class="sel-no-result">Aucune structure trouvée pour « ${query} »</div>`;
+  }
+
+  list.innerHTML = html;
+  focusedOptIdx = -1;
+}
+
+/* ==== 3. Sélection : champ = SIGLE — NOM LONG + badge + parent ==== */
+
+function selectStructure(id) {
+  if (!D || !D.structures) return;
+
+  const S = D.structures || [];
+  current = S.find(s => s.id == id);
+  if (!current) return;
+
+  const sigle = current[CFG.c.S.sigle] || "";
+  const nom   = current[CFG.c.S.nom]   || "";
+  const type  = current[CFG.c.S.type]  || "";
+
+  // Champ principal
+  const inp = document.getElementById('sel-input');
+  if (inp) {
+    inp.value = `${sigle} — ${nom}`;
+  }
+
+  // Badge courant
+  const badge = document.getElementById('cur-badge');
+  if (badge) {
+    badge.innerHTML = `<span class="badge b-${type}">${type}</span>`;
+  }
+
+  // Parent
+  const pid = current[CFG.c.S.parent];
+  const parentElt = document.getElementById('cur-parent');
+  if (parentElt) {
+    if (pid) {
+      const p = S.find(s => s.id == pid);
+      parentElt.textContent = p ? `↑ ${p[CFG.c.S.nom]}` : "";
+    } else {
+      parentElt.textContent = "";
+    }
+  }
+
+  // Boutons d’action
+  ['btn-html','btn-print','btn-pdf'].forEach(bid => {
+    const b = document.getElementById(bid);
+    if (b) b.disabled = false;
+  });
+
+  // Marquage dans la liste
+  document.querySelectorAll('.sel-option').forEach(o => {
+    o.classList.toggle('active', parseInt(o.dataset.id, 10) === id);
+  });
+
+  // Marquage dans le q‑nav
+  document.querySelectorAll('.qnav-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.id, 10) === id);
+  });
+
+  closeDropdown();
+  renderFiche(current);
+}
+
+/* ==== 4. Dans ta fonction build(), ajoute l’appel à buildQuickNav() ==== */
+/* Exemple : adapte ton build() pour inclure cette ligne après chargement des données :
+
+function build() {
+  // ... ton code existant (init D, CFG, etc.)
+  buildQuickNav();        // <--- AJOUTER CETTE LIGNE
+  renderDropdownList(''); // si ce n’est pas déjà fait
+  // ...
+}
+
+*/
+
 
 /* ═══════════════════════════════════════════════════════
    MODAL PDF
