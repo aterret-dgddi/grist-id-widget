@@ -481,6 +481,15 @@ function nVal(v) {
 
 function selectIndicateur(btn) {
 
+  // Si btn est une string → retrouver le bouton correspondant
+  if (typeof btn === 'string') {
+    btn = document.querySelector('.ind-btn[data-col="'+btn+'"]');
+    if (!btn) {
+      console.error('selectIndicateur: bouton introuvable pour', btn);
+      return;
+    }
+  }
+
   // Reset visuel
   document.querySelectorAll('.ind-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
@@ -530,14 +539,12 @@ function selectIndicateur(btn) {
     document.getElementById('col-valeur').disabled = true;
     document.getElementById('col-annee').disabled = true;
     document.getElementById('btn-preview').disabled = false;
-
-    // ❌ NE PAS activer btn-write ici
-    // Il sera activé dans genererPreviewFraisMission()
   } else {
     document.getElementById('col-valeur').disabled = false;
     document.getElementById('col-annee').disabled = false;
   }
 }
+
 
 
 
@@ -667,11 +674,12 @@ function apresLecture(headers, rows) {
   G.rawRows = rows;
 
   // 🔥 Correction : resynchroniser le mode FM après import
-  selectIndicateur(document.querySelector('.ind-btn.active'));
+  selectIndicateur(G.colIndicateur);
 
   remplirSelects(headers);
   analyserMapping();
 }
+
 
 
 /* ─────────────────────────────────────────────────
