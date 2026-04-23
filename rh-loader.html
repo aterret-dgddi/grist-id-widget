@@ -207,10 +207,14 @@ tr:last-child td{border-bottom:none;}
           <span class="ind-name">💻 Informatique</span>
           <span class="ind-col">Dépenses + PC (table Informatique)</span>
         </button>
-		<button class="ind-btn" data-col="__FRAISMISSION__" onclick="selectIndicateur(this)" style="border-style:dashed;">
+		<button class="ind-btn"
+        data-col="__FRAISMISSION__"
+        onclick="selectIndicateur('__FRAISMISSION__')"
+        style="border-style:dashed;">
   <span class="ind-name">🧾 Frais de mission</span>
   <span class="ind-col">Transport / Hébergement / Repas</span>
 </button>
+
       </div>
       <div id="info-mode-it" style="display:none;margin-top:10px;padding:10px 12px;background:#EEF2F7;border-radius:6px;border-left:3px solid #1351A8;">
         <div style="font-size:11px;font-weight:700;color:#002F6C;margin-bottom:4px;">💻 Mode import Informatique</div>
@@ -473,11 +477,7 @@ function nVal(v) {
   var s = String(v).replace(',', '.').replace(/\s/g,'');
   var x = parseFloat(s);
   return isNaN(x) ? null : x;
-}
-/* ─────────────────────────────────────────────────
-   SÉLECTION INDICATEUR
-───────────────────────────────────────────────── */
-function selectIndicateur(btn) {
+}function selectIndicateur(btn) {
 
   // Reset visuel
   document.querySelectorAll('.ind-btn').forEach(b => b.classList.remove('active'));
@@ -487,8 +487,8 @@ function selectIndicateur(btn) {
   G.colIndicateur = btn.dataset.col;
 
   // Modes spéciaux
-  G.modeInformatique   = (G.colIndicateur === '__INFORMATIQUE__');
-  G.modeFraisMission   = (G.colIndicateur === '__FRAISMISSION__');
+  G.modeInformatique = (G.colIndicateur === '__INFORMATIQUE__');
+  G.modeFraisMission = (G.colIndicateur === '__FRAISMISSION__');
 
   // Log clair
   if (G.modeInformatique) {
@@ -528,7 +528,9 @@ function selectIndicateur(btn) {
     document.getElementById('col-valeur').disabled = true;
     document.getElementById('col-annee').disabled = true;
     document.getElementById('btn-preview').disabled = false;
-  document.getElementById('btn-write').disabled = false; ;
+
+    // ❌ NE PAS activer btn-write ici
+    // Il sera activé dans genererPreviewFraisMission()
   } else {
     document.getElementById('col-valeur').disabled = false;
     document.getElementById('col-annee').disabled = false;
@@ -660,9 +662,14 @@ function lireExcel(file) {
 function apresLecture(headers, rows) {
   G.fileHeaders = headers;
   G.rawRows = rows;
+
+  // 🔥 Correction : resynchroniser le mode FM après import
+  selectIndicateur(document.querySelector('.ind-btn.active'));
+
   remplirSelects(headers);
   analyserMapping();
 }
+
 /* ─────────────────────────────────────────────────
    SÉLECTEURS DE COLONNES
 ───────────────────────────────────────────────── */
