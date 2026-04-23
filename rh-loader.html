@@ -507,21 +507,34 @@ function selectIndicateur(btn) {
   var infoIT = document.getElementById('info-mode-it');
   if (infoIT) infoIT.style.display = G.modeInformatique ? '' : 'none';
 
+  // Info mode Frais de mission
+  var infoFM = document.getElementById('info-mode-fm');
+  if (infoFM) infoFM.style.display = G.modeFraisMission ? '' : 'none';
 
-// Info mode Frais de mission
-var infoFM = document.getElementById('info-mode-fm');
-if (infoFM) infoFM.style.display = G.modeFraisMission ? '' : 'none';
+  // Masquer / afficher le bloc de mapping
+  var mapWrap = document.getElementById('map-cols-wrap');
+  if (mapWrap) mapWrap.style.display = G.modeFraisMission ? 'none' : '';
 
+  // Changer le titre du STEP 2
+  var step2 = document.getElementById('step2-title');
+  if (step2) {
+    step2.textContent = G.modeFraisMission
+      ? '② Fichier Frais de mission'
+      : '② Fichier source SI';
+  }
 
   // Désactivation des sélecteurs inutiles en mode FraisMission
   if (G.modeFraisMission) {
     document.getElementById('col-valeur').disabled = true;
     document.getElementById('col-annee').disabled = true;
+    document.getElementById('btn-preview').disabled = false;
+  document.getElementById('btn-write').disabled = false; ;
   } else {
     document.getElementById('col-valeur').disabled = false;
     document.getElementById('col-annee').disabled = false;
   }
 }
+
 
 /* ─────────────────────────────────────────────────
    MODE ETPT
@@ -650,13 +663,39 @@ function apresLecture(headers, rows) {
   remplirSelects(headers);
   analyserMapping();
 }
-
 /* ─────────────────────────────────────────────────
    SÉLECTEURS DE COLONNES
 ───────────────────────────────────────────────── */
 function remplirSelects(headers) {
+
+  // ───────────────────────────────────────────────
+  // MODE FRAIS DE MISSION → on masque tout
+  // ───────────────────────────────────────────────
+  if (G.modeFraisMission) {
+
+    // Masquer le bloc de mapping
+    var wrap = document.getElementById('map-cols-wrap');
+    if (wrap) wrap.style.display = 'none';
+
+    // Vider les selects pour éviter toute confusion
+    ['col-source','col-annee','col-valeur'].forEach(function(id){
+      var sel = document.getElementById(id);
+      sel.innerHTML = '<option value="">(non utilisé en mode Frais de mission)</option>';
+      sel.disabled = true;
+    });
+
+    return; // IMPORTANT : on ne fait rien d’autre
+  }
+
+  // ───────────────────────────────────────────────
+  // MODE RH / INFORMATIQUE → comportement normal
+  // ───────────────────────────────────────────────
+  var wrap = document.getElementById('map-cols-wrap');
+  if (wrap) wrap.style.display = '';
+
   ['col-source','col-annee','col-valeur'].forEach(function(id){
     var sel = document.getElementById(id);
+    sel.disabled = false;
     sel.innerHTML = '<option value="">— choisir —</option>';
     headers.forEach(function(h){
       var opt = document.createElement('option');
@@ -666,91 +705,57 @@ function remplirSelects(headers) {
   });
 
   // Heuristiques de pré-sélection
-  var h_lc = headers.map(function(h){ return h.toLowerCase(); });
+  var h_lc = headers.map(h => h.toLowerCase());
   function guess(keywords) {
     for (var i=0; i<keywords.length; i++)
       for (var j=0; j<h_lc.length; j++)
         if (h_lc[j].indexOf(keywords[i]) !== -1) return headers[j];
     return '';
   }
+
   document.getElementById('col-source').value  = guess(['source','si','code','libelle','structure','service']);
   document.getElementById('col-annee').value   = guess(['annee','année','year','exercice']);
   document.getElementById('col-valeur').value  = guess(['valeur','value','montant','etpt','masse','age','jours','effectif','nombre']);
 
-  // Écouter les changements pour re-analyser
+  // Re-analyse automatique
   ['col-source','col-annee','col-valeur'].forEach(function(id){
     document.getElementById(id).onchange = analyserMapping;
   });
 }
+function analyserMapping() {
+
+  // ───────────────────────────────────────────────
+  // MODE FRAIS DE MISSION → pas de mapping
+  // ───────────────────────────────────────────────
+  if (G.modeFraisMission) {
+    log('Mode FraisMission : mapping ignoré', 'log-info');
+    document.getElementById('card-mapping').style.display = 'none';
+    document.getElementById('btn-preview').disabled = !G.gristOk;
+    return;
+  }
+
 
 /* ─────────────────────────────────────────────────
-   ANALYSE MAPPING
+   GÉNÉRATION DU PREVIEW
 ───────────────────────────────────────────────── */
-function analyserMapping() {
-  var colSrc = document.getElementById('col-source').value;
-  var colAn  = document.getElementById('col-annee').value;
-  var colVal = document.getElementById('col-valeur').value;
-  if (!colSrc || !colAn || !colVal || !G.rawRows.length) return;
-
-  // Valeurs uniques de Source_SI dans le fichier
-  var srcSet = {};
-  G.rawRows.forEach(function(r){ srcSet[r[colSrc]] = true; });
-  var srcVals = Object.keys(srcSet).filter(Boolean);
-
-  // Construire le mapping via table Equivalence
-  var equivMap = {}; // Source_SI → nom structure Grist
-  G.equivalence.forEach(function(e){
-    var src = strVal(e.Source_SI || e.source_si || e['Source SI'] || '');
-    var dst = strVal(e.Structure  || e.structure  || '');
-    if (src && dst) equivMap[src] = dst;
-  });
-
-  // Résoudre nom structure → id Grist
-  var structByNom = {};
-  G.tableStruct.forEach(function(s){ structByNom[strVal(s.Nom || s.nom || '')] = s.id; });
-
-  var mappingDiv = document.getElementById('mapping-rows');
-  mappingDiv.innerHTML = '';
-  var allOk = true;
-
-  srcVals.forEach(function(src) {
-    var nomGrist = equivMap[src] || null;
-    var structId = nomGrist ? structByNom[nomGrist] : null;
-    var cls, label;
-    if (structId) {
-      cls = 'ok'; label = nomGrist + ' (id ' + structId + ')';
-    } else if (nomGrist) {
-      cls = 'warn'; label = '⚠ "' + nomGrist + '" non trouvé dans Structures'; allOk = false;
-    } else {
-      cls = 'err'; label = '✗ Aucune équivalence trouvée'; allOk = false;
-    }
-    var row = document.createElement('div');
-    row.className = 'map-row';
-    row.innerHTML = '<div class="map-src" title="' + src + '">' + src + '</div>'
-      + '<div class="map-arrow">→</div>'
-      + '<div class="map-dst ' + cls + '">' + label + '</div>';
-    mappingDiv.appendChild(row);
-  });
-
-  document.getElementById('card-mapping').style.display = '';
-  document.getElementById('btn-preview').disabled = !allOk || !G.gristOk;
-  if (!allOk) log(srcVals.length - Object.keys(equivMap).length + ' correspondances manquantes — vérifiez la table Equivalence', 'log-warn');
-  else log('Mapping OK — ' + srcVals.length + ' structures résolues', 'log-ok');
-}
-
-function reanalyser() { analyserMapping(); }
-
 /* ─────────────────────────────────────────────────
    GÉNÉRATION DU PREVIEW
 ───────────────────────────────────────────────── */
 function genererPreview() {
 
+  log('genererPreview() appelé — modeFM=' + !!G.modeFraisMission + ', modeIT=' + !!G.modeInformatique, 'log-info');
+
   // ───────────────────────────────────────────────
   //  MODE FRAIS DE MISSION → redirection immédiate
   // ───────────────────────────────────────────────
   if (G.modeFraisMission) {
-    return genererPreviewFraisMission();
+    log('Redirection vers genererPreviewFraisMission()', 'log-info');
+    return genererPreviewFraisMission();   // ← STOP ici
   }
+
+  // ───────────────────────────────────────────────
+  //  MODE RH / INFORMATIQUE
+  // ───────────────────────────────────────────────
 
   var colSrc = document.getElementById('col-source').value;
   var colAn  = document.getElementById('col-annee').value;
@@ -783,11 +788,8 @@ function genererPreview() {
     var src    = r[colSrc];
     var anneeR = Number(r[colAn]) || 0;
 
-    // ───────────────────────────────────────────────
     // MODE INFORMATIQUE
-    // ───────────────────────────────────────────────
     if (G.modeInformatique) {
-
       var dep = nVal(r['DepensesBureautique'] || r['Depenses'] || r[colVal] || null);
       var pcp = nVal(r['NbPCPortable'] || r['PCPortable'] || r['nb_portable'] || null);
       var pcb = nVal(r['NbPCBureau'] || r['PCBureau'] || r['nb_bureau'] || null);
@@ -819,9 +821,7 @@ function genererPreview() {
       continue;
     }
 
-    // ───────────────────────────────────────────────
     // MODE RH STANDARD
-    // ───────────────────────────────────────────────
     var valeurBrute = nVal(r[colVal]);
     var isEtptCol = ['ETPT_SU','ETPT_AGCO','ETPTtotal'].indexOf(G.colIndicateur) !== -1;
     var valeur = (isEtptCol && valeurBrute !== null)
@@ -858,9 +858,6 @@ function genererPreview() {
   afficherPreview();
 }
 
-/* ─────────────────────────────────────────────────
-   PREVIEW FRAIS DE MISSION (format vertical)
-───────────────────────────────────────────────── */
 function genererPreviewFraisMission(){
   var headers = G.fileHeaders;
 
@@ -891,7 +888,7 @@ function genererPreviewFraisMission(){
     headers.forEach(h => {
       if([colAnnee, colMission, colFrais].includes(h)) return;
 
-      var src = h; // nom de la structure SI = nom de la colonne
+      var src = h;
       var val = nVal(r[h]);
       if(val === null) return;
 
@@ -933,9 +930,11 @@ function genererPreviewFraisMission(){
     modeFM: true
   }));
 
+  // Activer l’écriture FM (simple, sans conditions)
+  document.getElementById('btn-write').disabled = false;
+
   afficherPreview();
 }
-
 
 function afficherPreview() {
   var ins  = G.preview.filter(function(r){ return r.action==='ins'; }).length;
@@ -975,7 +974,9 @@ function afficherPreview() {
   }
 
   document.getElementById('card-preview').style.display = '';
-  document.getElementById('btn-write').disabled = (ins+upd === 0) || !G.gristOk;
+ document.getElementById('btn-write').disabled =
+  G.modeFraisMission ? false : ((ins+upd === 0) || !G.gristOk);
+
 
   log('Preview : ' + ins + ' insertions, ' + upd + ' mises à jour, ' + skip + ' ignorées', 'log-info');
 }
