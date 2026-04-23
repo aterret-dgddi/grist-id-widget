@@ -207,6 +207,10 @@ tr:last-child td{border-bottom:none;}
           <span class="ind-name">💻 Informatique</span>
           <span class="ind-col">Dépenses + PC (table Informatique)</span>
         </button>
+		<button class="ind-btn" data-col="__FRAISMISSION__" onclick="selectIndicateur(this)" style="border-style:dashed;">
+  <span class="ind-name">🧾 Frais de mission</span>
+  <span class="ind-col">Transport / Hébergement / Repas</span>
+</button>
       </div>
       <div id="info-mode-it" style="display:none;margin-top:10px;padding:10px 12px;background:#EEF2F7;border-radius:6px;border-left:3px solid #1351A8;">
         <div style="font-size:11px;font-weight:700;color:#002F6C;margin-bottom:4px;">💻 Mode import Informatique</div>
@@ -215,6 +219,17 @@ tr:last-child td{border-bottom:none;}
           Les données seront écrites dans la table <strong>Informatique</strong> (pas RH).
         </div>
       </div>
+	  
+	  <div id="info-mode-fm" style="display:none;margin-top:10px;padding:10px 12px;background:#EEF2F7;border-radius:6px;border-left:3px solid #1351A8;">
+  <div style="font-size:11px;font-weight:700;color:#002F6C;margin-bottom:4px;">🧾 Mode import Frais de mission</div>
+  <div style="font-size:11px;color:#4A5A6A;">
+    Le fichier doit contenir les colonnes <strong>Annee</strong>, <strong>NatureMission</strong>, <strong>NatureFrais</strong>,<br>
+    puis une colonne par structure (DG, DI, SCN, DR…).<br>
+    Les données seront écrites dans la table <strong>FraisMission</strong>.
+  </div>
+</div>
+
+	  
       <div id="etpt-mois-wrap"  style="margin-top:10px;padding:10px 12px;background:#EEF2F7;border-radius:6px;border-left:3px solid #1351A8;display:none;">
         <div style="font-size:11px;font-weight:700;color:#002F6C;margin-bottom:6px;">⚙️ Calcul ETPT — normalisation mensuelle</div>
         <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
@@ -459,36 +474,76 @@ function nVal(v) {
   var x = parseFloat(s);
   return isNaN(x) ? null : x;
 }
-
 /* ─────────────────────────────────────────────────
    SÉLECTION INDICATEUR
 ───────────────────────────────────────────────── */
 function selectIndicateur(btn) {
-  document.querySelectorAll('.ind-btn').forEach(function(b){ b.classList.remove('active'); });
+
+  // Reset visuel
+  document.querySelectorAll('.ind-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+
+  // Indicateur sélectionné
   G.colIndicateur = btn.dataset.col;
-  G.modeInformatique = (G.colIndicateur === '__INFORMATIQUE__');
-  log('Indicateur sélectionné : ' + (G.modeInformatique ? 'Informatique (multi-colonnes)' : G.colIndicateur), 'log-info');
-  var isEtpt = ['ETPT_SU','ETPT_AGCO','ETPTtotal'].indexOf(G.colIndicateur) !== -1;
+
+  // Modes spéciaux
+  G.modeInformatique   = (G.colIndicateur === '__INFORMATIQUE__');
+  G.modeFraisMission   = (G.colIndicateur === '__FRAISMISSION__');
+
+  // Log clair
+  if (G.modeInformatique) {
+    log('Indicateur sélectionné : Informatique (multi‑colonnes)', 'log-info');
+  } else if (G.modeFraisMission) {
+    log('Indicateur sélectionné : Frais de mission (Transport / Hébergement / Repas)', 'log-info');
+  } else {
+    log('Indicateur sélectionné : ' + G.colIndicateur, 'log-info');
+  }
+
+  // Affichage du bloc ETPT
+  var isEtpt = ['ETPT_SU','ETPT_AGCO','ETPTtotal'].includes(G.colIndicateur);
   document.getElementById('etpt-mois-wrap').style.display = isEtpt ? '' : 'none';
+
   // Info mode Informatique
   var infoIT = document.getElementById('info-mode-it');
-  if(infoIT) infoIT.style.display = G.modeInformatique ? '' : 'none';
+  if (infoIT) infoIT.style.display = G.modeInformatique ? '' : 'none';
+
+
+// Info mode Frais de mission
+var infoFM = document.getElementById('info-mode-fm');
+if (infoFM) infoFM.style.display = G.modeFraisMission ? '' : 'none';
+
+
+  // Désactivation des sélecteurs inutiles en mode FraisMission
+  if (G.modeFraisMission) {
+    document.getElementById('col-valeur').disabled = true;
+    document.getElementById('col-annee').disabled = true;
+  } else {
+    document.getElementById('col-valeur').disabled = false;
+    document.getElementById('col-annee').disabled = false;
+  }
 }
+
+/* ─────────────────────────────────────────────────
+   MODE ETPT
+───────────────────────────────────────────────── */
 function updateEtptMode() {
   var mode = document.querySelector('input[name="etpt-mode"]:checked').value;
-  document.getElementById('etpt-mois-input').style.display = mode==='mois' ? 'flex' : 'none';
+  document.getElementById('etpt-mois-input').style.display =
+    (mode === 'mois') ? 'flex' : 'none';
 }
+
 function getDiviseurEtpt(annee) {
   var mode = document.querySelector('input[name="etpt-mode"]:checked');
   if (!mode || mode.value === 'annee') return 12;
+
   var mois = parseInt(document.getElementById('etpt-mois').value) || 3;
-  // Si l'année du fichier correspond à l'année en cours → utiliser le diviseur mois
   var anneeCourante = new Date().getFullYear();
   return (annee === anneeCourante) ? mois : 12;
 }
 
-/* Détection automatique depuis le nom de fichier */
+/* ─────────────────────────────────────────────────
+   DÉTECTION AUTOMATIQUE INDICATEUR
+───────────────────────────────────────────────── */
 function detectIndicateur(filename) {
   var f = filename.toLowerCase();
   var map = {
@@ -501,12 +556,15 @@ function detectIndicateur(filename) {
     'formation':  'JoursFormationParAgent',
     'cible':      'EffectifsCibles',
     'effectif':   'EffectifsCibles',
+    'frais':      '__FRAISMISSION__',
+    'mission':    '__FRAISMISSION__'
   };
   for (var key in map) {
-    if (f.indexOf(key) !== -1) return map[key];
+    if (f.includes(key)) return map[key];
   }
   return null;
 }
+
 
 /* ─────────────────────────────────────────────────
    DRAG & DROP / FILE INPUT
@@ -686,6 +744,14 @@ function reanalyser() { analyserMapping(); }
    GÉNÉRATION DU PREVIEW
 ───────────────────────────────────────────────── */
 function genererPreview() {
+
+  // ───────────────────────────────────────────────
+  //  MODE FRAIS DE MISSION → redirection immédiate
+  // ───────────────────────────────────────────────
+  if (G.modeFraisMission) {
+    return genererPreviewFraisMission();
+  }
+
   var colSrc = document.getElementById('col-source').value;
   var colAn  = document.getElementById('col-annee').value;
   var colVal = document.getElementById('col-valeur').value;
@@ -696,8 +762,11 @@ function genererPreview() {
     var dst = strVal(e.Structure  || e.structure  || '');
     if (src && dst) equivMap[src] = dst;
   });
+
   var structByNom = {};
-  G.tableStruct.forEach(function(s){ structByNom[strVal(s.Nom || s.nom || '')] = s.id; });
+  G.tableStruct.forEach(function(s){
+    structByNom[strVal(s.Nom || s.nom || '')] = s.id;
+  });
 
   // Index existant : RH ou Informatique selon le mode
   var rhIndex = {};
@@ -708,28 +777,51 @@ function genererPreview() {
   });
 
   G.preview = [];
-  for(var i=0; i<G.rawRows.length; i++){
+
+  for (var i=0; i<G.rawRows.length; i++) {
     var r = G.rawRows[i];
     var src    = r[colSrc];
     var anneeR = Number(r[colAn]) || 0;
 
-    // ── Mode Informatique : 3 colonnes simultanées ──
-    if(G.modeInformatique){
-      var dep=nVal(r['DepensesBureautique']||r['Depenses']||r[colVal]||null);
-      var pcp=nVal(r['NbPCPortable']||r['PCPortable']||r['nb_portable']||null);
-      var pcb=nVal(r['NbPCBureau']||r['PCBureau']||r['nb_bureau']||null);
-      if(dep===null&&pcp===null&&pcb===null){
-        G.preview.push({action:'skip',src:src,annee:anneeR,valeur:null,raison:'valeurs manquantes'}); continue;
+    // ───────────────────────────────────────────────
+    // MODE INFORMATIQUE
+    // ───────────────────────────────────────────────
+    if (G.modeInformatique) {
+
+      var dep = nVal(r['DepensesBureautique'] || r['Depenses'] || r[colVal] || null);
+      var pcp = nVal(r['NbPCPortable'] || r['PCPortable'] || r['nb_portable'] || null);
+      var pcb = nVal(r['NbPCBureau'] || r['PCBureau'] || r['nb_bureau'] || null);
+
+      if (dep===null && pcp===null && pcb===null) {
+        G.preview.push({action:'skip',src:src,annee:anneeR,valeur:null,raison:'valeurs manquantes'});
+        continue;
       }
-      var ngIT=equivMap[src], sidIT=ngIT?structByNom[ngIT]:null;
-      if(!sidIT){G.preview.push({action:'err',src:src,annee:anneeR,valeur:null,raison:'structure non résolue'}); continue;}
-      var keyIT=sidIT+'|'+anneeR, exIT=rhIndex[keyIT];
-      G.preview.push({action:exIT?'upd':'ins',src:src,nom:ngIT,structId:sidIT,
-        annee:anneeR,valeur:{dep:dep,pcp:pcp,pcb:pcb},rhId:exIT||null,modeIT:true});
+
+      var ngIT = equivMap[src], sidIT = ngIT ? structByNom[ngIT] : null;
+      if (!sidIT) {
+        G.preview.push({action:'err',src:src,annee:anneeR,valeur:null,raison:'structure non résolue'});
+        continue;
+      }
+
+      var keyIT = sidIT+'|'+anneeR, exIT = rhIndex[keyIT];
+
+      G.preview.push({
+        action: exIT ? 'upd' : 'ins',
+        src: src,
+        nom: ngIT,
+        structId: sidIT,
+        annee: anneeR,
+        valeur: {dep:dep, pcp:pcp, pcb:pcb},
+        rhId: exIT || null,
+        modeIT: true
+      });
+
       continue;
     }
 
-    // ── Mode standard ──
+    // ───────────────────────────────────────────────
+    // MODE RH STANDARD
+    // ───────────────────────────────────────────────
     var valeurBrute = nVal(r[colVal]);
     var isEtptCol = ['ETPT_SU','ETPT_AGCO','ETPTtotal'].indexOf(G.colIndicateur) !== -1;
     var valeur = (isEtptCol && valeurBrute !== null)
@@ -737,15 +829,21 @@ function genererPreview() {
       : valeurBrute;
 
     if (!src || !anneeR || valeur === null) {
-      G.preview.push({ action:'skip', src:src, annee:anneeR, valeur:valeur, raison:'valeur manquante' }); continue;
+      G.preview.push({ action:'skip', src:src, annee:anneeR, valeur:valeur, raison:'valeur manquante' });
+      continue;
     }
+
     var nomGrist = equivMap[src];
     var structId = nomGrist ? structByNom[nomGrist] : null;
+
     if (!structId) {
-      G.preview.push({ action:'err', src:src, annee:anneeR, valeur:valeur, raison:'structure non résolue' }); continue;
+      G.preview.push({ action:'err', src:src, annee:anneeR, valeur:valeur, raison:'structure non résolue' });
+      continue;
     }
+
     var key  = structId + '|' + anneeR;
     var rhId = rhIndex[key];
+
     G.preview.push({
       action:   rhId ? 'upd' : 'ins',
       src:      src,
@@ -759,6 +857,85 @@ function genererPreview() {
 
   afficherPreview();
 }
+
+/* ─────────────────────────────────────────────────
+   PREVIEW FRAIS DE MISSION (format vertical)
+───────────────────────────────────────────────── */
+function genererPreviewFraisMission(){
+  var headers = G.fileHeaders;
+
+  var colAnnee = 'Annee';
+  var colMission = 'NatureMission';
+  var colFrais = 'NatureFrais';
+
+  // Equivalence Source_SI → Structure (nom)
+  var equivMap = {};
+  G.equivalence.forEach(e => {
+    var src = strVal(e.Source_SI);
+    var dst = strVal(e.Structure);
+    if(src && dst) equivMap[src] = dst;
+  });
+
+  // Structure (nom) → id
+  var structByNom = {};
+  G.tableStruct.forEach(s => structByNom[strVal(s.Nom)] = s.id);
+
+  var acc = {}; // key = structId|annee|mission
+
+  // Chaque ligne du fichier
+  G.rawRows.forEach(r => {
+    var an = parseInt(r[colAnnee]);
+    var tm = r[colMission];
+    var nf = r[colFrais];
+
+    headers.forEach(h => {
+      if([colAnnee, colMission, colFrais].includes(h)) return;
+
+      var src = h; // nom de la structure SI = nom de la colonne
+      var val = nVal(r[h]);
+      if(val === null) return;
+
+      var nomGrist = equivMap[src];
+      var structId = nomGrist ? structByNom[nomGrist] : null;
+
+      if(!structId){
+        G.preview.push({action:'err', src, raison:'structure non résolue'});
+        return;
+      }
+
+      var key = structId + '|' + an + '|' + tm;
+
+      if(!acc[key]){
+        acc[key] = {
+          Structure: structId,
+          Nom: nomGrist,
+          Annee: an,
+          TypeMission: tm,
+          MontantTransport: 0,
+          MontantHebergement: 0,
+          MontantRepas: 0
+        };
+      }
+
+      if(nf.toLowerCase().includes('transport')) acc[key].MontantTransport += val;
+      if(nf.toLowerCase().includes('hébergement')) acc[key].MontantHebergement += val;
+      if(nf.toLowerCase().includes('repas')) acc[key].MontantRepas += val;
+    });
+  });
+
+  // Convertir en preview
+  G.preview = Object.values(acc).map(obj => ({
+    action:'ins',
+    structId: obj.Structure,
+    nom: obj.Nom,
+    annee: obj.Annee,
+    valeur: obj,
+    modeFM: true
+  }));
+
+  afficherPreview();
+}
+
 
 function afficherPreview() {
   var ins  = G.preview.filter(function(r){ return r.action==='ins'; }).length;
@@ -809,7 +986,7 @@ function escH(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').re
    ÉCRITURE DANS GRIST
 ───────────────────────────────────────────────── */
 async function ecrireGrist() {
-  var toWrite = G.preview.filter(function(r){ return r.action==='ins'||r.action==='upd'; });
+  var toWrite = G.preview.filter(r => r.action==='ins' || r.action==='upd');
   if (!toWrite.length) return;
 
   var btn = document.getElementById('btn-write');
@@ -817,23 +994,54 @@ async function ecrireGrist() {
   document.getElementById('prog-wrap').style.display = '';
   log('Début écriture : ' + toWrite.length + ' lignes…', 'log-info');
 
-  var BATCH = 20; // actions par appel
+  var BATCH = 20;
   var ok = 0, err = 0;
 
   for (var i=0; i<toWrite.length; i+=BATCH) {
     var batch = toWrite.slice(i, i+BATCH);
+
     var actions = batch.map(function(r){
-      var tableCible = r.modeIT ? 'Informatique' : 'RH';
-      var fields = { Annee: r.annee };
-      if(r.modeIT && r.valeur){
-        if(r.valeur.dep!==null) fields['DepensesBureautique']=r.valeur.dep;
-        if(r.valeur.pcp!==null) fields['NbPCPortable']=r.valeur.pcp;
-        if(r.valeur.pcb!==null) fields['NbPCBureau']=r.valeur.pcb;
+
+      // ───────────────────────────────────────────────
+      // Sélection de la table cible
+      // ───────────────────────────────────────────────
+      var tableCible =
+        r.modeIT ? 'Informatique' :
+        r.modeFM ? 'FraisMission' :
+        'RH';
+
+      // ───────────────────────────────────────────────
+      // Construction des champs
+      // ───────────────────────────────────────────────
+      var fields = {};
+
+      // --- Frais de mission ---
+      if (r.modeFM) {
+        fields['Structure'] = r.structId;
+        fields['Annee'] = r.annee;
+        fields['TypeMission'] = r.valeur.TypeMission;
+        fields['MontantTransport'] = r.valeur.MontantTransport;
+        fields['MontantHebergement'] = r.valeur.MontantHebergement;
+        fields['MontantRepas'] = r.valeur.MontantRepas;
+
+      // --- Informatique ---
+      } else if (r.modeIT) {
+        fields['Structure'] = r.structId;
+        fields['Annee'] = r.annee;
+        if (r.valeur.dep !== null) fields['DepensesBureautique'] = r.valeur.dep;
+        if (r.valeur.pcp !== null) fields['NbPCPortable'] = r.valeur.pcp;
+        if (r.valeur.pcb !== null) fields['NbPCBureau'] = r.valeur.pcb;
+
+      // --- RH standard ---
       } else {
+        fields['Structure'] = r.structId;
+        fields['Annee'] = r.annee;
         fields[G.colIndicateur] = r.valeur;
       }
-      if (r.action === 'ins') fields['Structure'] = r.structId;
 
+      // ───────────────────────────────────────────────
+      // Action Grist
+      // ───────────────────────────────────────────────
       if (r.action === 'upd') {
         return ['UpdateRecord', tableCible, r.rhId, fields];
       } else {
@@ -852,19 +1060,24 @@ async function ecrireGrist() {
     var pct = Math.round((i+BATCH)/toWrite.length*100);
     document.getElementById('prog-fill').style.width = Math.min(pct,100)+'%';
     document.getElementById('prog-lbl').textContent = ok + ' / ' + toWrite.length + ' lignes écrites…';
-    await new Promise(function(res){ setTimeout(res, 50); });
+
+    await new Promise(res => setTimeout(res, 50));
   }
 
-  document.getElementById('prog-lbl').textContent = '✅ Terminé : ' + ok + ' lignes écrites' + (err?' ('+err+' erreurs)':'');
+  document.getElementById('prog-lbl').textContent =
+    '✅ Terminé : ' + ok + ' lignes écrites' + (err ? ' ('+err+' erreurs)' : '');
   log('Écriture terminée : ' + ok + ' OK, ' + err + ' erreurs', err?'log-err':'log-ok');
 
-  // Recharger les tables
+  // ───────────────────────────────────────────────
+  // Rechargement des tables
+  // ───────────────────────────────────────────────
   try {
     var rawRH = await grist.docApi.fetchTable('RH');
     G.tableRH = toObjs(rawRH);
     log('Table RH rechargée : ' + G.tableRH.length + ' lignes', 'log-ok');
   } catch(e) {}
-  if(G.modeInformatique){
+
+  if (G.modeInformatique) {
     try {
       var rawIT2 = await grist.docApi.fetchTable('Informatique');
       G.tableIT = toObjs(rawIT2);
@@ -872,8 +1085,15 @@ async function ecrireGrist() {
     } catch(e) {}
   }
 
+  try {
+    var rawFM = await grist.docApi.fetchTable('FraisMission');
+    G.tableFM = toObjs(rawFM);
+    log('FraisMission rechargée : ' + G.tableFM.length + ' lignes', 'log-ok');
+  } catch(e) {}
+
   btn.textContent = '✅ Données enregistrées';
 }
+
 
 /* ─────────────────────────────────────────────────
    RESET
