@@ -477,7 +477,9 @@ function nVal(v) {
   var s = String(v).replace(',', '.').replace(/\s/g,'');
   var x = parseFloat(s);
   return isNaN(x) ? null : x;
-}function selectIndicateur(btn) {
+}
+
+function selectIndicateur(btn) {
 
   // Reset visuel
   document.querySelectorAll('.ind-btn').forEach(b => b.classList.remove('active'));
@@ -536,6 +538,7 @@ function nVal(v) {
     document.getElementById('col-annee').disabled = false;
   }
 }
+
 
 
 /* ─────────────────────────────────────────────────
@@ -669,6 +672,7 @@ function apresLecture(headers, rows) {
   remplirSelects(headers);
   analyserMapping();
 }
+
 
 /* ─────────────────────────────────────────────────
    SÉLECTEURS DE COLONNES
