@@ -299,22 +299,27 @@ tr:last-child td{border-bottom:none;}
   </div>
 
   <!-- STEP 3 : Analyse & Mapping -->
-  <div class="card" id="card-mapping" style="display:none;">
-    <div class="card-hdr"><h2>③ Correspondances Source SI → Structures Grist</h2></div>
-    <div class="card-body">
-      <div id="status-bar"></div>
-      <div class="map-hdr">
-        <div>Source SI (fichier)</div><div></div><div>Structure Grist</div>
-      </div>
-      <div id="mapping-rows"></div>
-      <div class="btn-row">
-        <button class="btn btn-secondary" onclick="reanalyser()">🔄 Ré-analyser</button>
-        <button class="btn btn-primary" id="btn-preview" onclick="genererPreview()" disabled>
-          👁 Voir le prévisualisation
-        </button>
-      </div>
+<div class="card" id="card-mapping" style="display:none;">
+  <div class="card-hdr"><h2>③ Correspondances Source SI → Structures Grist</h2></div>
+  <div class="card-body">
+    <div id="status-bar"></div>
+
+    <div class="map-hdr">
+      <div>Source SI (fichier)</div><div></div><div>Structure Grist</div>
     </div>
+
+    <div id="mapping-rows"></div>
   </div>
+</div>
+
+<!-- BOUTONS D'ACTION (séparés du mapping pour rester visibles en mode FM) -->
+<div class="btn-row" id="mapping-actions" style="margin-top:-10px; margin-bottom:20px;">
+  <button class="btn btn-secondary" onclick="reanalyser()">🔄 Ré-analyser</button>
+  <button class="btn btn-primary" id="btn-preview" onclick="genererPreview()" disabled>
+    👁 Voir la prévisualisation
+  </button>
+</div>
+
 
   <!-- STEP 4 : Preview -->
   <div class="card" id="card-preview" style="display:none;">
@@ -691,30 +696,40 @@ function apresLecture(headers, rows) {
 function remplirSelects(headers) {
 
   // ───────────────────────────────────────────────
-  // MODE FRAIS DE MISSION → on masque tout
+  // MODE FRAIS DE MISSION → on masque seulement les selects
   // ───────────────────────────────────────────────
   if (G.modeFraisMission) {
 
-    // Masquer le bloc de mapping
-    var wrap = document.getElementById('map-cols-wrap');
-    if (wrap) wrap.style.display = 'none';
+    // Masquer uniquement les lignes contenant les selects
+    ['col-source','col-annee','col-valeur'].forEach(id => {
+      var sel = document.getElementById(id);
+      if (sel) sel.parentElement.style.display = 'none';
+    });
 
-    // Vider les selects pour éviter toute confusion
+    // Désactiver les selects
     ['col-source','col-annee','col-valeur'].forEach(function(id){
       var sel = document.getElementById(id);
       sel.innerHTML = '<option value="">(non utilisé en mode Frais de mission)</option>';
       sel.disabled = true;
     });
 
-    return; // IMPORTANT : on ne fait rien d’autre
+    // IMPORTANT : ne pas masquer map-cols-wrap
+    // car il contient le bouton Prévisualiser
+
+    return;
   }
 
   // ───────────────────────────────────────────────
   // MODE RH / INFORMATIQUE → comportement normal
   // ───────────────────────────────────────────────
-  var wrap = document.getElementById('map-cols-wrap');
-  if (wrap) wrap.style.display = '';
 
+  // Réafficher les lignes des selects
+  ['col-source','col-annee','col-valeur'].forEach(id => {
+    var sel = document.getElementById(id);
+    if (sel) sel.parentElement.style.display = '';
+  });
+
+  // Remplir normalement
   ['col-source','col-annee','col-valeur'].forEach(function(id){
     var sel = document.getElementById(id);
     sel.disabled = false;
@@ -726,7 +741,7 @@ function remplirSelects(headers) {
     });
   });
 
-  // Heuristiques de pré-sélection
+  // Heuristiques
   var h_lc = headers.map(h => h.toLowerCase());
   function guess(keywords) {
     for (var i=0; i<keywords.length; i++)
@@ -744,6 +759,8 @@ function remplirSelects(headers) {
     document.getElementById(id).onchange = analyserMapping;
   });
 }
+
+
 function analyserMapping() {
 
   // ───────────────────────────────────────────────
@@ -751,8 +768,12 @@ function analyserMapping() {
   // ───────────────────────────────────────────────
   if (G.modeFraisMission) {
     log('Mode FraisMission : mapping ignoré', 'log-info');
-    document.getElementById('card-mapping').style.display = 'none';
-    document.getElementById('btn-preview').disabled = !G.gristOk;
+    // On masque seulement les selects, pas le bloc entier
+['col-source','col-annee','col-valeur'].forEach(id => {
+  var sel = document.getElementById(id);
+  if (sel) sel.parentElement.style.display = 'none';
+});
+    document.getElementById('btn-preview').disabled = false
     return;
   }
 }
